@@ -1,4 +1,7 @@
-fungsi sapa tulis "Halo dari fungsi"
+buat a = 10
+buat b = 20
+buat hasil = a + b
+tulis hasil
+
+fungsi sapa tulis "Halo"
 panggil sapa
-panggil sapa
-tulis "selesai"

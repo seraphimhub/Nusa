@@ -23,6 +23,7 @@ const (
 	NUMBER  TokenType = "NUMBER"
 	EQUAL   TokenType = "EQUAL"
 	GREATER TokenType = "GREATER"
+	PLUS    TokenType = "PLUS"
 )
 
 var Keywords = map[string]TokenType{

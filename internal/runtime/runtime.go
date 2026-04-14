@@ -37,19 +37,22 @@ func toInt(v interface{}) int {
 	case int:
 		return val
 	case string:
-		n, _ := strconv.Atoi(val)
-		return n
-	default:
-		return 0
+		if num, err := strconv.Atoi(val); err == nil {
+			return num
+		}
 	}
+	return 0
+}
+
+func (r *Runtime) resolveValue(name string) interface{} {
+	if val, ok := r.Variables[name]; ok {
+		return val
+	}
+	return parseValue(name)
 }
 
 func (r *Runtime) printValue(value string) {
-	if val, ok := r.Variables[value]; ok {
-		fmt.Println(val)
-	} else {
-		fmt.Println(parseValue(value))
-	}
+	fmt.Println(r.resolveValue(value))
 }
 
 func (r *Runtime) runFunction(name string) {
@@ -71,9 +74,22 @@ func (r *Runtime) Execute(p *parser.Parser) {
 		switch tok.Type {
 		case token.BUAT:
 			name := p.Next()
-			p.Next()
-			value := p.Next()
-			r.Variables[name.Literal] = parseValue(value.Literal)
+			p.Next() // skip =
+
+			left := p.Next()
+
+			// cek apakah ada operator berikutnya
+			if p.Pos < len(p.Tokens) && p.Tokens[p.Pos].Type == token.PLUS {
+				p.Next() // consume +
+				right := p.Next()
+
+				leftVal := toInt(r.resolveValue(left.Literal))
+				rightVal := toInt(r.resolveValue(right.Literal))
+
+				r.Variables[name.Literal] = leftVal + rightVal
+			} else {
+				r.Variables[name.Literal] = r.resolveValue(left.Literal)
+			}
 
 		case token.TULIS:
 			value := p.Next()
@@ -86,8 +102,8 @@ func (r *Runtime) Execute(p *parser.Parser) {
 			action := p.Next()
 			value := p.Next()
 
-			leftVal := toInt(r.Variables[left.Literal])
-			rightVal := toInt(parseValue(right.Literal))
+			leftVal := toInt(r.resolveValue(left.Literal))
+			rightVal := toInt(r.resolveValue(right.Literal))
 
 			if operator.Type == token.GREATER && leftVal > rightVal {
 				if action.Type == token.TULIS {
@@ -100,7 +116,7 @@ func (r *Runtime) Execute(p *parser.Parser) {
 			action := p.Next()
 			value := p.Next()
 
-			count := toInt(parseValue(countTok.Literal))
+			count := toInt(r.resolveValue(countTok.Literal))
 
 			for i := 0; i < count; i++ {
 				if action.Type == token.TULIS {

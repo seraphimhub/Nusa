@@ -28,17 +28,25 @@ func Tokenize(input string) []token.Token {
 
 			switch part {
 			case "=":
-				tokens = append(tokens, token.Token{
-					Type:    token.EQUAL,
-					Literal: part,
-				})
-				continue
+    				tokens = append(tokens, token.Token{
+        				Type:    token.EQUAL,
+        				Literal: part,
+    			})
+    				continue
+
 			case ">":
-				tokens = append(tokens, token.Token{
-					Type:    token.GREATER,
-					Literal: part,
-				})
-				continue
+    				tokens = append(tokens, token.Token{
+        				Type:    token.GREATER,
+        				Literal: part,
+    			})
+    				continue
+
+			case "+":
+    				tokens = append(tokens, token.Token{
+        				Type:    token.PLUS,
+        				Literal: part,
+    			})
+    				continue
 			}
 
 			if strings.HasPrefix(part, "\"") {
