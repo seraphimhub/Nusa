@@ -8,13 +8,20 @@ import (
 	"github.com/seraphimhub/Nusa/internal/token"
 )
 
+type Function struct {
+	Action token.TokenType
+	Value  string
+}
+
 type Runtime struct {
 	Variables map[string]interface{}
+	Functions map[string]Function
 }
 
 func New() *Runtime {
 	return &Runtime{
 		Variables: make(map[string]interface{}),
+		Functions: make(map[string]Function),
 	}
 }
 
@@ -45,6 +52,18 @@ func (r *Runtime) printValue(value string) {
 	}
 }
 
+func (r *Runtime) runFunction(name string) {
+	fn, ok := r.Functions[name]
+	if !ok {
+		fmt.Println("fungsi tidak ditemukan:", name)
+		return
+	}
+
+	if fn.Action == token.TULIS {
+		r.printValue(fn.Value)
+	}
+}
+
 func (r *Runtime) Execute(p *parser.Parser) {
 	for {
 		tok := p.Next()
@@ -52,7 +71,7 @@ func (r *Runtime) Execute(p *parser.Parser) {
 		switch tok.Type {
 		case token.BUAT:
 			name := p.Next()
-			p.Next() // skip =
+			p.Next()
 			value := p.Next()
 			r.Variables[name.Literal] = parseValue(value.Literal)
 
@@ -88,6 +107,20 @@ func (r *Runtime) Execute(p *parser.Parser) {
 					r.printValue(value.Literal)
 				}
 			}
+
+		case token.FUNGSI:
+			name := p.Next()
+			action := p.Next()
+			value := p.Next()
+
+			r.Functions[name.Literal] = Function{
+				Action: action.Type,
+				Value:  value.Literal,
+			}
+
+		case token.PANGGIL:
+			name := p.Next()
+			r.runFunction(name.Literal)
 
 		case token.EOF:
 			return
