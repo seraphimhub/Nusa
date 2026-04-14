@@ -1,12 +1,5 @@
-buat a = 20
-buat b = 5
+buat umur = 20
 
-buat tambah = a + b
-buat kurang = a - b
-buat kali = a * b
-buat bagi = a / b
-
-tulis tambah
-tulis kurang
-tulis kali
-tulis bagi
+jika umur >= 18 tulis "dewasa"
+jika umur == 20 tulis "pas"
+jika umur < 10 tulis "anak"

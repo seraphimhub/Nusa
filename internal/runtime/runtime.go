@@ -83,6 +83,24 @@ func (r *Runtime) calculate(left int, op token.TokenType, right int) int {
 	return left
 }
 
+func (r *Runtime) compare(left int, op token.TokenType, right int) bool {
+	switch op {
+	case token.GREATER:
+		return left > right
+	case token.LESS:
+		return left < right
+	case token.GTE:
+		return left >= right
+	case token.LTE:
+		return left <= right
+	case token.EQ:
+		return left == right
+	case token.NEQ:
+		return left != right
+	}
+	return false
+}
+
 func (r *Runtime) Execute(p *parser.Parser) {
 	for {
 		tok := p.Next()
@@ -90,7 +108,7 @@ func (r *Runtime) Execute(p *parser.Parser) {
 		switch tok.Type {
 		case token.BUAT:
 			name := p.Next()
-			p.Next() // skip =
+			p.Next()
 
 			left := p.Next()
 
@@ -129,7 +147,7 @@ func (r *Runtime) Execute(p *parser.Parser) {
 			leftVal := toInt(r.resolveValue(left.Literal))
 			rightVal := toInt(r.resolveValue(right.Literal))
 
-			if operator.Type == token.GREATER && leftVal > rightVal {
+			if r.compare(leftVal, operator.Type, rightVal) {
 				if action.Type == token.TULIS {
 					r.printValue(value.Literal)
 				}

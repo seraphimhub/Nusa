@@ -33,6 +33,21 @@ func Tokenize(input string) []token.Token {
 			case ">":
 				tokens = append(tokens, token.Token{Type: token.GREATER, Literal: part})
 				continue
+			case "<":
+				tokens = append(tokens, token.Token{Type: token.LESS, Literal: part})
+				continue
+			case ">=":
+				tokens = append(tokens, token.Token{Type: token.GTE, Literal: part})
+				continue
+			case "<=":
+				tokens = append(tokens, token.Token{Type: token.LTE, Literal: part})
+				continue
+			case "==":
+				tokens = append(tokens, token.Token{Type: token.EQ, Literal: part})
+				continue
+			case "!=":
+				tokens = append(tokens, token.Token{Type: token.NEQ, Literal: part})
+				continue
 			case "+":
 				tokens = append(tokens, token.Token{Type: token.PLUS, Literal: part})
 				continue

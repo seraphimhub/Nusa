@@ -24,11 +24,17 @@ const (
 
 	EQUAL   TokenType = "EQUAL"
 	GREATER TokenType = "GREATER"
+	LESS    TokenType = "LESS"
 
 	PLUS     TokenType = "PLUS"
 	MINUS    TokenType = "MINUS"
 	MULTIPLY TokenType = "MULTIPLY"
 	DIVIDE   TokenType = "DIVIDE"
+
+	GTE TokenType = "GTE"
+	LTE TokenType = "LTE"
+	EQ  TokenType = "EQ"
+	NEQ TokenType = "NEQ"
 )
 
 var Keywords = map[string]TokenType{
