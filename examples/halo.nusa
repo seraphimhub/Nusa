@@ -1,3 +1,4 @@
-buat umur = 20
-jika umur > 18 tulis "dewasa"
+buat nama = "Nusa Loop"
+ulang 3 tulis nama
+ulang 2 tulis "langsung string"
 tulis "selesai"

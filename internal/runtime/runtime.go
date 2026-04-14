@@ -76,6 +76,19 @@ func (r *Runtime) Execute(p *parser.Parser) {
 				}
 			}
 
+		case token.ULANG:
+			countTok := p.Next()
+			action := p.Next()
+			value := p.Next()
+
+			count := toInt(parseValue(countTok.Literal))
+
+			for i := 0; i < count; i++ {
+				if action.Type == token.TULIS {
+					r.printValue(value.Literal)
+				}
+			}
+
 		case token.EOF:
 			return
 		}
