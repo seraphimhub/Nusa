@@ -1,5 +1,4 @@
-buat umur = 20
+buat umur = 15
 
 jika umur >= 18 tulis "dewasa"
-jika umur == 20 tulis "pas"
-jika umur < 10 tulis "anak"
+kalau_tidak tulis "anak"

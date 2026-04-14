@@ -16,6 +16,7 @@ type Function struct {
 type Runtime struct {
 	Variables map[string]interface{}
 	Functions map[string]Function
+	LastIfResult bool
 }
 
 func New() *Runtime {
@@ -109,12 +110,10 @@ func (r *Runtime) Execute(p *parser.Parser) {
 		case token.BUAT:
 			name := p.Next()
 			p.Next()
-
 			left := p.Next()
 
 			if p.Pos < len(p.Tokens) {
 				nextType := p.Tokens[p.Pos].Type
-
 				if nextType == token.PLUS ||
 					nextType == token.MINUS ||
 					nextType == token.MULTIPLY ||
@@ -147,7 +146,19 @@ func (r *Runtime) Execute(p *parser.Parser) {
 			leftVal := toInt(r.resolveValue(left.Literal))
 			rightVal := toInt(r.resolveValue(right.Literal))
 
-			if r.compare(leftVal, operator.Type, rightVal) {
+			r.LastIfResult = r.compare(leftVal, operator.Type, rightVal)
+
+			if r.LastIfResult {
+				if action.Type == token.TULIS {
+					r.printValue(value.Literal)
+				}
+			}
+
+		case token.KALAU_TIDAK:
+			action := p.Next()
+			value := p.Next()
+
+			if !r.LastIfResult {
 				if action.Type == token.TULIS {
 					r.printValue(value.Literal)
 				}
