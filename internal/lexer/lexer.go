@@ -2,9 +2,19 @@ package lexer
 
 import (
 	"strings"
+	"unicode"
 
 	"github.com/seraphimhub/Nusa/internal/token"
 )
+
+func isNumber(s string) bool {
+	for _, r := range s {
+		if !unicode.IsDigit(r) {
+			return false
+		}
+	}
+	return len(s) > 0
+}
 
 func Tokenize(input string) []token.Token {
 	var tokens []token.Token
@@ -16,9 +26,16 @@ func Tokenize(input string) []token.Token {
 		for i := 0; i < len(parts); i++ {
 			part := parts[i]
 
-			if part == "=" {
+			switch part {
+			case "=":
 				tokens = append(tokens, token.Token{
 					Type:    token.EQUAL,
+					Literal: part,
+				})
+				continue
+			case ">":
+				tokens = append(tokens, token.Token{
+					Type:    token.GREATER,
 					Literal: part,
 				})
 				continue
@@ -39,6 +56,14 @@ func Tokenize(input string) []token.Token {
 				continue
 			}
 
+			if isNumber(part) {
+				tokens = append(tokens, token.Token{
+					Type:    token.NUMBER,
+					Literal: part,
+				})
+				continue
+			}
+
 			tokens = append(tokens, token.Token{
 				Type:    token.LookupIdent(part),
 				Literal: part,
@@ -46,9 +71,6 @@ func Tokenize(input string) []token.Token {
 		}
 	}
 
-	tokens = append(tokens, token.Token{
-		Type: token.EOF,
-	})
-
+	tokens = append(tokens, token.Token{Type: token.EOF})
 	return tokens
 }

@@ -13,15 +13,19 @@ const (
 
 	BUAT  TokenType = "BUAT"
 	TULIS TokenType = "TULIS"
+	JIKA  TokenType = "JIKA"
 
-	IDENT  TokenType = "IDENT"
-	STRING TokenType = "STRING"
-	EQUAL  TokenType = "EQUAL"
+	IDENT   TokenType = "IDENT"
+	STRING  TokenType = "STRING"
+	NUMBER  TokenType = "NUMBER"
+	EQUAL   TokenType = "EQUAL"
+	GREATER TokenType = "GREATER"
 )
 
 var Keywords = map[string]TokenType{
 	"buat":  BUAT,
 	"tulis": TULIS,
+	"jika":  JIKA,
 }
 
 func LookupIdent(ident string) TokenType {

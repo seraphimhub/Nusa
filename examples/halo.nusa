@@ -1,3 +1,3 @@
-buat nama = "Halo dari Nusa"
-tulis nama
-tulis "Nusa siap jalan"
+buat umur = 20
+jika umur > 18 tulis "dewasa"
+tulis "selesai"
