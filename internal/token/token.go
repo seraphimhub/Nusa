@@ -21,9 +21,14 @@ const (
 	IDENT   TokenType = "IDENT"
 	STRING  TokenType = "STRING"
 	NUMBER  TokenType = "NUMBER"
+
 	EQUAL   TokenType = "EQUAL"
 	GREATER TokenType = "GREATER"
-	PLUS    TokenType = "PLUS"
+
+	PLUS     TokenType = "PLUS"
+	MINUS    TokenType = "MINUS"
+	MULTIPLY TokenType = "MULTIPLY"
+	DIVIDE   TokenType = "DIVIDE"
 )
 
 var Keywords = map[string]TokenType{

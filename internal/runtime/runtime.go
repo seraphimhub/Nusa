@@ -61,10 +61,26 @@ func (r *Runtime) runFunction(name string) {
 		fmt.Println("fungsi tidak ditemukan:", name)
 		return
 	}
-
 	if fn.Action == token.TULIS {
 		r.printValue(fn.Value)
 	}
+}
+
+func (r *Runtime) calculate(left int, op token.TokenType, right int) int {
+	switch op {
+	case token.PLUS:
+		return left + right
+	case token.MINUS:
+		return left - right
+	case token.MULTIPLY:
+		return left * right
+	case token.DIVIDE:
+		if right == 0 {
+			return 0
+		}
+		return left / right
+	}
+	return left
 }
 
 func (r *Runtime) Execute(p *parser.Parser) {
@@ -78,18 +94,26 @@ func (r *Runtime) Execute(p *parser.Parser) {
 
 			left := p.Next()
 
-			// cek apakah ada operator berikutnya
-			if p.Pos < len(p.Tokens) && p.Tokens[p.Pos].Type == token.PLUS {
-				p.Next() // consume +
-				right := p.Next()
+			if p.Pos < len(p.Tokens) {
+				nextType := p.Tokens[p.Pos].Type
 
-				leftVal := toInt(r.resolveValue(left.Literal))
-				rightVal := toInt(r.resolveValue(right.Literal))
+				if nextType == token.PLUS ||
+					nextType == token.MINUS ||
+					nextType == token.MULTIPLY ||
+					nextType == token.DIVIDE {
 
-				r.Variables[name.Literal] = leftVal + rightVal
-			} else {
-				r.Variables[name.Literal] = r.resolveValue(left.Literal)
+					operator := p.Next()
+					right := p.Next()
+
+					leftVal := toInt(r.resolveValue(left.Literal))
+					rightVal := toInt(r.resolveValue(right.Literal))
+
+					r.Variables[name.Literal] = r.calculate(leftVal, operator.Type, rightVal)
+					continue
+				}
 			}
+
+			r.Variables[name.Literal] = r.resolveValue(left.Literal)
 
 		case token.TULIS:
 			value := p.Next()

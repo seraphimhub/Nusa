@@ -1,7 +1,12 @@
-buat a = 10
-buat b = 20
-buat hasil = a + b
-tulis hasil
+buat a = 20
+buat b = 5
 
-fungsi sapa tulis "Halo"
-panggil sapa
+buat tambah = a + b
+buat kurang = a - b
+buat kali = a * b
+buat bagi = a / b
+
+tulis tambah
+tulis kurang
+tulis kali
+tulis bagi
