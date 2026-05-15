@@ -21,10 +21,19 @@ func Tokenize(input string) []token.Token {
 	lines := strings.Split(input, "\n")
 
 	for _, line := range lines {
+		trimmedLine := strings.TrimSpace(line)
+		if trimmedLine == "" || strings.HasPrefix(trimmedLine, "#") || strings.HasPrefix(trimmedLine, "//") {
+			continue
+		}
+
 		parts := strings.Fields(line)
 
 		for i := 0; i < len(parts); i++ {
 			part := parts[i]
+
+			if part == "#" || part == "//" {
+				break
+			}
 
 			switch part {
 			case "=":
