@@ -25,7 +25,8 @@ func main() {
 
 	data, err := os.ReadFile(filename)
 	if err != nil {
-		panic(err)
+		fmt.Printf("gagal membaca file %s: %v\n", filename, err)
+		os.Exit(1)
 	}
 
 	tokens := lexer.Tokenize(string(data))
