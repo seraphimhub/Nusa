@@ -1,0 +1,117 @@
+# Nusa - Demonstrasi Fitur Bahasa
+# ================================
+
+# -- Variabel dan Tipe Data --
+buat nama = "Budi"
+buat umur = 25
+buat tinggi = 175.5
+buat sudahMenikah = salah
+
+# -- Output --
+tulis "=== NUSA PROGRAMMING LANGUAGE ==="
+tulis "Nama: " + nama
+tulis "Umur: " + umur
+tulis "Tinggi: " + tinggi
+
+# -- Aritmatika --
+buat a = 10
+buat b = 3
+tulis "10 + 3 = " + (a + b)
+tulis "10 - 3 = " + (a - b)
+tulis "10 * 3 = " + (a * b)
+tulis "10 / 3 = " + (a / b)
+
+# -- Perbandingan --
+jika a > b {
+    tulis "a lebih besar dari b"
+}
+kalau_tidak {
+    tulis "a tidak lebih besar dari b"
+}
+
+# -- Boolean Expression --
+jika sudahMenikah == salah {
+    tulis nama + " belum menikah"
+}
+
+# -- Logical Operators --
+buat x = 7
+jika x > 5 dan x < 10 {
+    tulis "x di antara 5 dan 10"
+}
+
+jika x < 5 atau x > 6 {
+    tulis "x < 5 atau x > 6"
+}
+
+jika tidak (x == 0) {
+    tulis "x bukan nol"
+}
+
+# -- Percabangan Bertingkat --
+buat nilai = 85
+
+jika nilai >= 90 {
+    tulis "Nilai: A"
+}
+kalau_tidak jika nilai >= 80 {
+    tulis "Nilai: B"
+}
+kalau_tidak jika nilai >= 70 {
+    tulis "Nilai: C"
+}
+kalau_tidak {
+    tulis "Nilai: D"
+}
+
+# -- Loop dengan ulang --
+tulis ""
+tulis "Menghitung 1-5:"
+ulang 5 {
+    tulis "Iterasi ke-" + (1 + 1)
+}
+
+# -- Loop dengan selama --
+tulis ""
+tulis "While loop:"
+buat counter = 0
+selama counter < 3 {
+    tulis "Counter: " + counter
+    counter = counter + 1
+}
+
+# -- Fungsi --
+tulis ""
+tulis "=== FUNGSI ==="
+
+fungsi sapa(nama) {
+    tulis "Halo, " + nama + "!"
+}
+
+fungsi tambah(a, b) {
+    kembali a + b
+}
+
+fungsi isGenap(n) {
+    kembali n % 2 == 0
+}
+
+panggil sapa("Nusa")
+panggil sapa("Dunia")
+
+buat hasil = panggil tambah(10, 20)
+tulis "10 + 20 = " + hasil
+
+jika panggil isGenap(8) {
+    tulis "8 adalah bilangan genap"
+}
+
+# -- String Concatenation --
+tulis ""
+tulis "Halo, nama saya " + nama + " dan umur saya " + umur + " tahun."
+
+# -- Komentar --
+tulis ""
+tulis "Program selesai!"
+# ini komentar
+// ini juga komentar

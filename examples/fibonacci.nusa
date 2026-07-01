@@ -1,0 +1,22 @@
+# Program Fibonacci
+# Menampilkan deret Fibonacci
+
+fungsi fibonacci(n) {
+    buat a = 0
+    buat b = 1
+    buat hasil = ""
+    
+    ulang n {
+        hasil = hasil + a + " "
+        buat temp = a + b
+        a = b
+        b = temp
+    }
+    
+    kembali hasil
+}
+
+tulis "Deret Fibonacci 10 angka pertama:"
+tulis panggil fibonacci(10)
+tulis ""
+tulis "Selesai!"
