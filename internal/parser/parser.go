@@ -17,15 +17,16 @@ type (
 type Precedence int
 
 const (
-	_ Precedence = iota
-	ASSIGNMENT   // =
-	LOWEST       // default
-	LOGICAL      // dan, atau
-	COMPARISON   // ==, !=, >, <, >=, <=
-	SUM          // +, -
-	PRODUCT      // *, /, %
-	PREFIX       // !, -
-	CALL         // panggil fn(x)
+	_          Precedence = iota
+	ASSIGNMENT            // =
+	LOWEST                // default
+	LOGICAL               // dan, atau
+	COMPARISON            // ==, !=, >, <, >=, <=
+	SUM                   // +, -
+	PRODUCT               // *, /, %
+	PREFIX                // !, -
+	CALL                  // fn(x)
+	INDEX                 // daftar[0]
 )
 
 var precedences = map[token.TokenType]Precedence{
@@ -44,6 +45,7 @@ var precedences = map[token.TokenType]Precedence{
 	token.DIVIDE:   PRODUCT,
 	token.MODULO:   PRODUCT,
 	token.LPAREN:   CALL,
+	token.LBRACKET: INDEX,
 }
 
 type Parser struct {
@@ -98,6 +100,7 @@ func New(tokens []token.Token) *Parser {
 	p.registerPrefix(token.LPAREN, p.parseGroupedExpression)
 	p.registerPrefix(token.PANGGIL, p.parseCallExpression)
 	p.registerPrefix(token.MEMBACA, p.parseInputExpression)
+	p.registerPrefix(token.LBRACKET, p.parseListLiteral)
 
 	p.infixParseFns = make(map[token.TokenType]infixParseFn)
 	p.registerInfix(token.PLUS, p.parseInfixExpression)
@@ -113,6 +116,8 @@ func New(tokens []token.Token) *Parser {
 	p.registerInfix(token.LTE, p.parseInfixExpression)
 	p.registerInfix(token.DAN, p.parseInfixExpression)
 	p.registerInfix(token.ATAU, p.parseInfixExpression)
+	p.registerInfix(token.LPAREN, p.parseCallFromExpression)
+	p.registerInfix(token.LBRACKET, p.parseIndexExpression)
 
 	return p
 }
@@ -195,6 +200,7 @@ func (p *Parser) skipToNextStatement() {
 			p.curToken.Type == token.JIKA ||
 			p.curToken.Type == token.ULANG ||
 			p.curToken.Type == token.SELAMA ||
+			p.curToken.Type == token.UNTUK ||
 			p.curToken.Type == token.FUNGSI ||
 			p.curToken.Type == token.PANGGIL ||
 			p.curToken.Type == token.KEMBALI ||
@@ -239,6 +245,8 @@ func (p *Parser) parseStatement() ast.Statement {
 		return p.parseForStatement()
 	case token.SELAMA:
 		return p.parseWhileStatement()
+	case token.UNTUK:
+		return p.parseUntukStatement()
 	case token.FUNGSI:
 		return p.parseFunctionStatement()
 	case token.PANGGIL:
@@ -254,10 +262,6 @@ func (p *Parser) parseStatement() ast.Statement {
 	case token.RBRACE:
 		return nil
 	default:
-		// Check for assignment statement: identifier = expr
-		if p.curToken.Type == token.IDENT && p.peekTokenIs(token.ASSIGN) {
-			return p.parseAssignStatement()
-		}
 		return p.parseExpressionStatement()
 	}
 }
@@ -293,25 +297,6 @@ func (p *Parser) parseLetStatement() *ast.LetStatement {
 }
 
 // --- Print Statement ---
-
-func (p *Parser) parseAssignStatement() *ast.ExpressionStatement {
-	ident := &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
-
-	p.nextToken() // consume IDENT
-	assignTok := p.curToken
-
-	p.nextToken() // consume =
-	value := p.parseExpression(LOWEST)
-
-	expr := &ast.InfixExpression{
-		Token:    assignTok,
-		Operator: "=",
-		Left:     ident,
-		Right:    value,
-	}
-
-	return &ast.ExpressionStatement{Token: ident.Token, Expression: expr}
-}
 
 func (p *Parser) parsePrintStatement() *ast.PrintStatement {
 	stmt := &ast.PrintStatement{Token: p.curToken}
@@ -621,8 +606,30 @@ func (p *Parser) parseInputExpression() ast.Expression {
 func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
 	stmt := &ast.ExpressionStatement{Token: p.curToken}
 
-	stmt.Expression = p.parseExpression(LOWEST)
+	expr := p.parseExpression(LOWEST)
+	if expr == nil {
+		return nil
+	}
 
+	// Penugasan ditangani di level statement agar target bisa berupa
+	// identifier maupun indeks daftar: x = 1, daftar[0] += 2.
+	if isAssignOperator(p.peekToken.Type) {
+		p.nextToken()
+		opTok := p.curToken
+
+		p.nextToken()
+		value := p.parseExpression(LOWEST)
+
+		stmt.Expression = &ast.AssignExpression{
+			Token:    opTok,
+			Target:   expr,
+			Operator: opTok.Literal,
+			Value:    value,
+		}
+		return stmt
+	}
+
+	stmt.Expression = expr
 	return stmt
 }
 
@@ -742,11 +749,153 @@ func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
 	return expr
 }
 
+// --- Daftar, Indeks, dan Pemanggilan ---
+
+func (p *Parser) parseListLiteral() ast.Expression {
+	list := &ast.ListLiteral{Token: p.curToken}
+	list.Elements = []ast.Expression{}
+
+	if p.peekTokenIs(token.RBRACKET) {
+		p.nextToken()
+		return list
+	}
+
+	p.nextToken()
+	list.Elements = append(list.Elements, p.parseExpression(LOWEST))
+
+	for p.peekTokenIs(token.COMMA) {
+		p.nextToken() // koma
+		p.nextToken() // elemen berikutnya
+		if p.curTokenIs(token.RBRACKET) {
+			break
+		}
+		list.Elements = append(list.Elements, p.parseExpression(LOWEST))
+	}
+
+	if p.curTokenIs(token.RBRACKET) {
+		return list
+	}
+	if !p.expectPeek(token.RBRACKET) {
+		return nil
+	}
+
+	return list
+}
+
+func (p *Parser) parseIndexExpression(left ast.Expression) ast.Expression {
+	expr := &ast.IndexExpression{Token: p.curToken, Left: left}
+
+	p.nextToken()
+	expr.Index = p.parseExpression(LOWEST)
+
+	if !p.expectPeek(token.RBRACKET) {
+		return nil
+	}
+
+	return expr
+}
+
+func (p *Parser) parseCallFromExpression(fn ast.Expression) ast.Expression {
+	expr := &ast.CallExpression{Token: p.curToken, Function: fn}
+
+	p.nextToken()
+	expr.Arguments = p.parseExpressionList(token.RPAREN)
+	if !p.curTokenIs(token.RPAREN) && !p.expectPeek(token.RPAREN) {
+		return nil
+	}
+
+	return expr
+}
+
+// --- Untuk Statement ---
+
+func (p *Parser) parseUntukStatement() ast.Statement {
+	tok := p.curToken
+
+	p.nextToken()
+	if p.curToken.Type != token.IDENT {
+		msg := fmt.Sprintf("baris %d: mengharapkan nama variabel setelah 'untuk'", p.curToken.Line)
+		p.errors = append(p.errors, msg)
+		p.skipToNextStatement()
+		return nil
+	}
+	name := &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	p.nextToken()
+	switch p.curToken.Type {
+	case token.DARI:
+		p.nextToken()
+		start := p.parseExpression(LOWEST)
+
+		if !p.expectPeek(token.SAMPAI) {
+			return nil
+		}
+		p.nextToken()
+		end := p.parseExpression(LOWEST)
+
+		var step ast.Expression
+		if p.peekTokenIs(token.LANGKAH) {
+			p.nextToken()
+			p.nextToken()
+			step = p.parseExpression(LOWEST)
+		}
+
+		p.nextToken()
+		return &ast.UntukStatement{
+			Token: tok,
+			Name:  name,
+			Start: start,
+			End:   end,
+			Step:  step,
+			Body:  p.parseBody(),
+		}
+
+	case token.DALAM:
+		p.nextToken()
+		iterable := p.parseExpression(LOWEST)
+
+		p.nextToken()
+		return &ast.UntukDalamStatement{
+			Token:    tok,
+			Name:     name,
+			Iterable: iterable,
+			Body:     p.parseBody(),
+		}
+
+	default:
+		msg := fmt.Sprintf("baris %d: setelah nama variabel 'untuk' harus ada 'dari' atau 'dalam'", p.curToken.Line)
+		p.errors = append(p.errors, msg)
+		p.skipToNextStatement()
+		return nil
+	}
+}
+
+// parseBody menerima blok { ... } atau satu statement tanpa kurung kurawal.
+func (p *Parser) parseBody() *ast.BlockStatement {
+	if p.curToken.Type == token.LBRACE {
+		return p.parseBlockStatement()
+	}
+
+	return &ast.BlockStatement{
+		Token:      p.curToken,
+		Statements: []ast.Statement{p.parseStatement()},
+	}
+}
+
 // --- Helpers ---
+
+func isAssignOperator(t token.TokenType) bool {
+	switch t {
+	case token.ASSIGN, token.PLUS_ASSIGN, token.MINUS_ASSIGN,
+		token.MULTIPLY_ASSIGN, token.DIVIDE_ASSIGN, token.MODULO_ASSIGN:
+		return true
+	}
+	return false
+}
 
 func isStatementStart(t token.TokenType) bool {
 	return t == token.BUAT || t == token.TULIS || t == token.JIKA ||
-		t == token.ULANG || t == token.SELAMA || t == token.FUNGSI ||
+		t == token.ULANG || t == token.SELAMA || t == token.UNTUK || t == token.FUNGSI ||
 		t == token.PANGGIL || t == token.KEMBALI || t == token.BERHENTI ||
 		t == token.LANJUTKAN || t == token.MEMBACA || t == token.KALAU_TIDAK ||
 		t == token.RBRACE || t == token.EOF
@@ -756,4 +905,3 @@ func isStatementStart(t token.TokenType) bool {
 func (p *Parser) Next() token.Token {
 	return p.l.nextToken()
 }
-
