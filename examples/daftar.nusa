@@ -1,0 +1,42 @@
+# Nusa - Daftar dan Fungsi Bawaan
+# ===============================
+
+buat buah = ["apel", "jeruk", "mangga"]
+
+tulis "Daftar awal: " + buah
+tulis "Jumlah buah: " + panjang(buah)
+tulis "Buah pertama: " + buah[0]
+tulis "Buah terakhir: " + buah[-1]
+
+# Ubah elemen dan tambah/hapus data
+buah[1] = "anggur"
+tambahkan(buah, "pisang")
+tulis "Setelah diubah: " + buah
+
+hapus(buah, 0)
+tulis "Setelah dihapus: " + buah
+
+# Operasi angka
+buat angka = [5, 2, 9, 1, 7]
+tulis ""
+tulis "Angka: " + angka
+tulis "Diurutkan: " + urutkan(angka)
+tulis "Dibalik: " + balik(angka)
+tulis "Jumlah: " + jumlah(angka)
+tulis "Rentang 1..5: " + rentang(1, 6)
+
+# Iterasi daftar
+tulis ""
+tulis "Daftar buah:"
+untuk b dalam buah {
+    tulis "- " + b
+}
+
+# Tipe data
+tulis ""
+tulis "tipe daftar  : " + tipe(buah)
+tulis "tipe teks    : " + tipe("nusa")
+tulis "tipe angka   : " + tipe(42)
+tulis "tipe desimal : " + tipe(3.14)
+tulis "tipe logika  : " + tipe(benar)
+tulis "tipe kosong  : " + tipe(kosong)
