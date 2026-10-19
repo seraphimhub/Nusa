@@ -514,12 +514,12 @@ func (p *Parser) parseCallExpression() ast.Expression {
 	p.nextToken()
 	if p.curToken.Type == token.LPAREN {
 		p.nextToken() // skip past LPAREN
+		if p.curTokenIs(token.RPAREN) {
+			return expr
+		}
 		expr.Arguments = p.parseExpressionList(token.RPAREN)
-		// consume RPAREN
-		if p.curToken.Type == token.RPAREN {
-			// already consumed by parseExpressionList
-		} else if p.peekTokenIs(token.RPAREN) {
-			p.nextToken()
+		if !p.expectPeek(token.RPAREN) {
+			return nil
 		}
 	} else {
 		// Single argument without parens (backward compat)
@@ -545,7 +545,9 @@ func (p *Parser) parseExpressionList(end token.TokenType) []ast.Expression {
 	// Parse first argument
 	args = append(args, p.parseExpression(LOWEST))
 
-	// Handle comma-separated arguments
+	// Handle comma-separated arguments. Token penutup sengaja tidak
+	// dikonsumsi di sini agar pemanggilan bersarang seperti
+	// jumlah(rentang(1, 5)) tidak memakai ')' milik call dalam.
 	for p.peekTokenIs(token.COMMA) {
 		p.nextToken() // skip comma
 		p.nextToken() // move to next expression
@@ -553,11 +555,6 @@ func (p *Parser) parseExpressionList(end token.TokenType) []ast.Expression {
 			break
 		}
 		args = append(args, p.parseExpression(LOWEST))
-	}
-
-	// Consume the end token if curToken isn't already at it
-	if p.curToken.Type != end && p.peekTokenIs(end) {
-		p.nextToken()
 	}
 
 	return args
@@ -799,8 +796,12 @@ func (p *Parser) parseCallFromExpression(fn ast.Expression) ast.Expression {
 	expr := &ast.CallExpression{Token: p.curToken, Function: fn}
 
 	p.nextToken()
+	if p.curTokenIs(token.RPAREN) {
+		return expr
+	}
+
 	expr.Arguments = p.parseExpressionList(token.RPAREN)
-	if !p.curTokenIs(token.RPAREN) && !p.expectPeek(token.RPAREN) {
+	if !p.expectPeek(token.RPAREN) {
 		return nil
 	}
 
