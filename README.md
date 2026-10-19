@@ -16,6 +16,7 @@ pemrograman sekaligus dipakai untuk skrip kecil sehari-hari.
 - **Sintaks Indonesia** yang konsisten dan mudah dibaca.
 - **Tipe data**: angka, desimal, teks, logika (`benar`/`salah`), `kosong`, dan daftar.
 - **Percabangan**: `jika`, `kalau_tidak`, termasuk `kalau_tidak jika`.
+- **Pencocokan nilai**: `pilih`, `kasus`, dan `bawaan` (mirip switch).
 - **Perulangan**: `ulang`, `selama`, `untuk ... dari ... sampai ... [langkah]`,
   dan `untuk ... dalam`.
 - **Fungsi**: parameter, `kembali`, rekursi, dan penutupan (closure) sederhana.
@@ -105,6 +106,7 @@ Contoh lain ada di direktori [`examples/`](examples):
 | [`teks.nusa`](examples/teks.nusa) | Pengolahan teks |
 | [`faktorial.nusa`](examples/faktorial.nusa) | Rekursi vs iterasi |
 | [`fibonacci.nusa`](examples/fibonacci.nusa) | Fibonacci rekursif dan daftar |
+| [`pilih.nusa`](examples/pilih.nusa) | Pencocokan nilai dengan `pilih` |
 
 ## Fungsi Bawaan
 
@@ -161,8 +163,8 @@ go test ./...
 - [x] Loop `untuk ... dari ... sampai` dan `untuk ... dalam`
 - [x] Penugasan gabungan
 - [x] Fungsi bawaan teks, daftar, dan matematika
+- [x] Pencocokan nilai `pilih`/`kasus`/`bawaan`
 - [ ] Tipe peta (`peta`) dan `untuk ... di ...`
-- [ ] Ekspresi pencocokan pola (`pilih`/`kasus`)
 - [ ] Modul dan `impor`
 - [ ] Pengetikan opsional dan pemeriksa tipe
 - [ ] Pemformatan kode otomatis (`nusa fmt`)
