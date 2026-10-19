@@ -51,6 +51,18 @@ repositori (tidak ada bypass admin):
 >
 > Setelah itu seluruh perubahan harus masuk lewat pull request yang lulus CI.
 
+### Proteksi tag rilis
+
+Semua tag dengan pola `v*` dilindungi ruleset **Lindungi tag rilis**:
+
+| Aturan | Status | Arti |
+| --- | --- | --- |
+| Hapus tag | Diblokir | Tag rilis tidak bisa dihapus dari server |
+| Non-fast-forward | Diblokir | Tag rilis tidak bisa dipindah ke commit lain |
+
+Akibatnya nomor versi yang sudah dipublikasikan bersifat tetap: kesalahan rilis
+diperbaiki lewat versi baru, bukan dengan mengubah tag lama.
+
 ### Pemeriksaan otomatis
 
 Setiap push dan pull request ke `main` menjalankan
