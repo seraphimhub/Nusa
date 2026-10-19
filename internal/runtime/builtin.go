@@ -25,6 +25,10 @@ func newBuiltins() map[string]*Builtin {
 	list := []*Builtin{
 		newBuiltin("panjang", builtinPanjang),
 		newBuiltin("tipe", builtinTipe),
+		newBuiltin("ada", builtinAda),
+		newBuiltin("kunci", builtinKunci),
+		newBuiltin("nilai", builtinNilai),
+		newBuiltin("ambil", builtinAmbil),
 		newBuiltin("ke_teks", builtinKeTeks),
 		newBuiltin("ke_angka", builtinKeAngka),
 		newBuiltin("ke_desimal", builtinKeDesimal),
@@ -65,9 +69,72 @@ func builtinPanjang(args ...Object) Object {
 		return &Integer{Value: int64(runeLen(obj.Value))}
 	case *List:
 		return &Integer{Value: int64(len(obj.Elements))}
+	case *Peta:
+		return &Integer{Value: int64(obj.Panjang())}
 	default:
-		return builtinError("panjang() hanya menerima teks atau daftar, mendapat %s", typeName(args[0]))
+		return builtinError("panjang() hanya menerima teks, daftar, atau peta; mendapat %s", typeName(args[0]))
 	}
+}
+
+func builtinAda(args ...Object) Object {
+	if err := needArgs("ada", args, 2); err != nil {
+		return err
+	}
+
+	peta, ok := args[0].(*Peta)
+	if !ok {
+		return builtinError("ada() membutuhkan peta pada argumen pertama, mendapat %s", typeName(args[0]))
+	}
+
+	_, ditemukan, errObj := peta.Ambil(args[1])
+	if errObj != nil {
+		return errObj
+	}
+	return &Boolean{Value: ditemukan}
+}
+
+func builtinKunci(args ...Object) Object {
+	if err := needArgs("kunci", args, 1); err != nil {
+		return err
+	}
+
+	peta, ok := args[0].(*Peta)
+	if !ok {
+		return builtinError("kunci() membutuhkan peta, mendapat %s", typeName(args[0]))
+	}
+	return &List{Elements: peta.Kunci()}
+}
+
+func builtinNilai(args ...Object) Object {
+	if err := needArgs("nilai", args, 1); err != nil {
+		return err
+	}
+
+	peta, ok := args[0].(*Peta)
+	if !ok {
+		return builtinError("nilai() membutuhkan peta, mendapat %s", typeName(args[0]))
+	}
+	return &List{Elements: peta.Nilai()}
+}
+
+func builtinAmbil(args ...Object) Object {
+	if err := needArgs("ambil", args, 3); err != nil {
+		return err
+	}
+
+	peta, ok := args[0].(*Peta)
+	if !ok {
+		return builtinError("ambil() membutuhkan peta pada argumen pertama, mendapat %s", typeName(args[0]))
+	}
+
+	nilai, ditemukan, errObj := peta.Ambil(args[1])
+	if errObj != nil {
+		return errObj
+	}
+	if !ditemukan {
+		return args[2]
+	}
+	return nilai
 }
 
 func builtinTipe(args ...Object) Object {
@@ -277,18 +344,26 @@ func builtinHapus(args ...Object) Object {
 		return err
 	}
 
-	list, ok := args[0].(*List)
-	if !ok {
-		return builtinError("hapus() membutuhkan daftar pada argumen pertama, mendapat %s", typeName(args[0]))
+	switch target := args[0].(type) {
+	case *List:
+		index, err := resolveIndex(args[1], len(target.Elements))
+		if err != nil {
+			return builtinError("hapus(): %s", err.Error())
+		}
+		target.Elements = append(target.Elements[:index], target.Elements[index+1:]...)
+		return target
+	case *Peta:
+		ditemukan, errObj := target.Hapus(args[1])
+		if errObj != nil {
+			return errObj
+		}
+		if !ditemukan {
+			return builtinError("hapus(): kunci %s tidak ada di peta", repr(args[1]))
+		}
+		return target
+	default:
+		return builtinError("hapus() membutuhkan daftar atau peta pada argumen pertama, mendapat %s", typeName(args[0]))
 	}
-
-	index, err := resolveIndex(args[1], len(list.Elements))
-	if err != nil {
-		return builtinError("hapus(): %s", err.Error())
-	}
-
-	list.Elements = append(list.Elements[:index], list.Elements[index+1:]...)
-	return list
 }
 
 func builtinUrutkan(args ...Object) Object {

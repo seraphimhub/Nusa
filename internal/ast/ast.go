@@ -400,6 +400,28 @@ func (ie *IndexExpression) String() string {
 	return "(" + ie.Left.String() + "[" + ie.Index.String() + "])"
 }
 
+// PetaEntri adalah satu pasangan kunci-nilai pada literal peta.
+type PetaEntri struct {
+	Kunci Expression
+	Nilai Expression
+}
+
+// PetaLiteral: peta { "a": 1, "b": 2 }
+type PetaLiteral struct {
+	Token token.Token // token.PETA
+	Entri []PetaEntri
+}
+
+func (pl *PetaLiteral) expressionNode()      {}
+func (pl *PetaLiteral) TokenLiteral() string { return pl.Token.Literal }
+func (pl *PetaLiteral) String() string {
+	parts := make([]string, 0, len(pl.Entri))
+	for _, entri := range pl.Entri {
+		parts = append(parts, entri.Kunci.String()+": "+entri.Nilai.String())
+	}
+	return "peta {" + strings.Join(parts, ", ") + "}"
+}
+
 // AssignExpression: target = value atau target += value
 type AssignExpression struct {
 	Token    token.Token // token.ASSIGN atau operator gabungan
@@ -482,9 +504,10 @@ func (ps *PilihStatement) String() string {
 }
 
 // UntukDalamStatement: untuk x dalam daftar { ... }
+// Bila ada dua nama, keduanya menerima kunci/index dan nilai.
 type UntukDalamStatement struct {
 	Token    token.Token // token.UNTUK
-	Name     *Identifier
+	Names    []*Identifier
 	Iterable Expression
 	Body     *BlockStatement
 }
@@ -492,5 +515,9 @@ type UntukDalamStatement struct {
 func (ud *UntukDalamStatement) statementNode()       {}
 func (ud *UntukDalamStatement) TokenLiteral() string { return ud.Token.Literal }
 func (ud *UntukDalamStatement) String() string {
-	return "untuk " + ud.Name.String() + " dalam " + ud.Iterable.String() + " " + ud.Body.String()
+	nama := make([]string, len(ud.Names))
+	for i, n := range ud.Names {
+		nama[i] = n.String()
+	}
+	return "untuk " + strings.Join(nama, ", ") + " dalam " + ud.Iterable.String() + " " + ud.Body.String()
 }

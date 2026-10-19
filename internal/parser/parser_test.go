@@ -151,11 +151,88 @@ untuk x dalam [1, 2, 3] {
 	if !ok {
 		t.Fatalf("bukan UntukDalamStatement: %T", program.Statements[0])
 	}
-	if forStmt.Name.Value != "x" {
-		t.Errorf("nama = %q, ingin x", forStmt.Name.Value)
+	if len(forStmt.Names) != 1 || forStmt.Names[0].Value != "x" {
+		t.Errorf("nama = %#v, ingin [x]", forStmt.Names)
 	}
 	if _, ok := forStmt.Iterable.(*ast.ListLiteral); !ok {
 		t.Errorf("iterable bukan ListLiteral: %T", forStmt.Iterable)
+	}
+}
+
+func TestParsePetaLiteral(t *testing.T) {
+	program := mustParse(t, `
+buat siswa = peta { "nama": "Budi", "umur": 17 }
+buat petaKosong = peta {}
+`)
+
+	peta, ok := program.Statements[0].(*ast.LetStatement).Value.(*ast.PetaLiteral)
+	if !ok {
+		t.Fatalf("nilai bukan PetaLiteral: %T", program.Statements[0])
+	}
+	if len(peta.Entri) != 2 {
+		t.Fatalf("jumlah entri = %d, ingin 2", len(peta.Entri))
+	}
+	if peta.Entri[0].Kunci.String() != `"nama"` || peta.Entri[0].Nilai.String() != `"Budi"` {
+		t.Errorf("entri pertama salah: %s: %s", peta.Entri[0].Kunci, peta.Entri[0].Nilai)
+	}
+
+	petaKosong, ok := program.Statements[1].(*ast.LetStatement).Value.(*ast.PetaLiteral)
+	if !ok {
+		t.Fatalf("nilai bukan PetaLiteral: %T", program.Statements[1])
+	}
+	if len(petaKosong.Entri) != 0 {
+		t.Errorf("peta kosong punya %d entri", len(petaKosong.Entri))
+	}
+}
+
+func TestParsePetaBersarangDanKomaAkhir(t *testing.T) {
+	program := mustParse(t, `
+buat data = peta {
+    "a": 1,
+    "b": peta { "c": 2 },
+}
+`)
+
+	peta := program.Statements[0].(*ast.LetStatement).Value.(*ast.PetaLiteral)
+	if len(peta.Entri) != 2 {
+		t.Fatalf("jumlah entri = %d, ingin 2", len(peta.Entri))
+	}
+	if _, ok := peta.Entri[1].Nilai.(*ast.PetaLiteral); !ok {
+		t.Errorf("entri kedua bukan peta bersarang: %T", peta.Entri[1].Nilai)
+	}
+}
+
+func TestParseUntukDuaVariabel(t *testing.T) {
+	program := mustParse(t, `
+untuk k, v dalam peta { "a": 1 } {
+    tulis k
+}
+`)
+
+	forStmt, ok := program.Statements[0].(*ast.UntukDalamStatement)
+	if !ok {
+		t.Fatalf("bukan UntukDalamStatement: %T", program.Statements[0])
+	}
+	if len(forStmt.Names) != 2 || forStmt.Names[0].Value != "k" || forStmt.Names[1].Value != "v" {
+		t.Errorf("nama = %#v, ingin [k v]", forStmt.Names)
+	}
+}
+
+func TestParseGalatBentukBaru(t *testing.T) {
+	tests := []string{
+		`peta "a": 1 }`,
+		`peta { "a" 1 }`,
+		`untuk i, j dari 1 sampai 3 { tulis i }`,
+		`untuk i, dalam [1] { tulis i }`,
+	}
+
+	for _, input := range tests {
+		t.Run(input, func(t *testing.T) {
+			_, errors := parseProgram(t, input)
+			if len(errors) == 0 {
+				t.Fatalf("ingin galat parser untuk %q", input)
+			}
+		})
 	}
 }
 

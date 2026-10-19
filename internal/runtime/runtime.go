@@ -23,6 +23,7 @@ const (
 	BOOLEAN_OBJ  ObjectType = "BOOLEAN"
 	NIL_OBJ      ObjectType = "NIL"
 	LIST_OBJ     ObjectType = "LIST"
+	PETA_OBJ     ObjectType = "PETA"
 	RETURN_OBJ   ObjectType = "RETURN"
 	BREAK_OBJ    ObjectType = "BREAK"
 	CONTINUE_OBJ ObjectType = "CONTINUE"
@@ -76,6 +77,118 @@ func (l *List) Inspect() string {
 		parts[i] = repr(e)
 	}
 	return "[" + strings.Join(parts, ", ") + "]"
+}
+
+// PetaEntri adalah satu pasangan kunci-nilai di dalam peta.
+type PetaEntri struct {
+	Kunci Object
+	Nilai Object
+}
+
+// Peta adalah kamus kunci-nilai dengan urutan insersi yang stabil sehingga
+// keluaran program selalu sama untuk program yang sama.
+type Peta struct {
+	entri map[string]PetaEntri
+	urut  []string
+}
+
+func NewPeta() *Peta {
+	return &Peta{entri: make(map[string]PetaEntri), urut: []string{}}
+}
+
+func (p *Peta) Type() ObjectType { return PETA_OBJ }
+
+func (p *Peta) Inspect() string {
+	parts := make([]string, 0, len(p.urut))
+	for _, hash := range p.urut {
+		entri := p.entri[hash]
+		parts = append(parts, repr(entri.Kunci)+": "+repr(entri.Nilai))
+	}
+	return "peta{" + strings.Join(parts, ", ") + "}"
+}
+
+// Panjang mengembalikan jumlah entri.
+func (p *Peta) Panjang() int { return len(p.urut) }
+
+// Set menyimpan nilai untuk kunci, menambahkannya bila belum ada.
+func (p *Peta) Set(kunci Object, nilai Object) *Error {
+	hash, errObj := kunciHash(kunci)
+	if errObj != nil {
+		return errObj
+	}
+	if _, ada := p.entri[hash]; !ada {
+		p.urut = append(p.urut, hash)
+	}
+	p.entri[hash] = PetaEntri{Kunci: kunci, Nilai: nilai}
+	return nil
+}
+
+// Ambil mengembalikan nilai dan apakah kunci ditemukan.
+func (p *Peta) Ambil(kunci Object) (Object, bool, *Error) {
+	hash, errObj := kunciHash(kunci)
+	if errObj != nil {
+		return nil, false, errObj
+	}
+	entri, ada := p.entri[hash]
+	if !ada {
+		return nil, false, nil
+	}
+	return entri.Nilai, true, nil
+}
+
+// Hapus membuang satu entri, mengembalikan apakah kunci ditemukan.
+func (p *Peta) Hapus(kunci Object) (bool, *Error) {
+	hash, errObj := kunciHash(kunci)
+	if errObj != nil {
+		return false, errObj
+	}
+	if _, ada := p.entri[hash]; !ada {
+		return false, nil
+	}
+	delete(p.entri, hash)
+	for i, h := range p.urut {
+		if h == hash {
+			p.urut = append(p.urut[:i], p.urut[i+1:]...)
+			break
+		}
+	}
+	return true, nil
+}
+
+// Kunci mengembalikan seluruh kunci sesuai urutan insersi.
+func (p *Peta) Kunci() []Object {
+	keys := make([]Object, 0, len(p.urut))
+	for _, hash := range p.urut {
+		keys = append(keys, p.entri[hash].Kunci)
+	}
+	return keys
+}
+
+// Nilai mengembalikan seluruh nilai sesuai urutan insersi.
+func (p *Peta) Nilai() []Object {
+	values := make([]Object, 0, len(p.urut))
+	for _, hash := range p.urut {
+		values = append(values, p.entri[hash].Nilai)
+	}
+	return values
+}
+
+// kunciHash memvalidasi jenis kunci dan mengubahnya menjadi penanda unik.
+func kunciHash(kunci Object) (string, *Error) {
+	switch obj := kunci.(type) {
+	case *String:
+		return "teks\x00" + obj.Value, nil
+	case *Integer:
+		return "angka\x00" + strconv.FormatInt(obj.Value, 10), nil
+	case *Float:
+		return "desimal\x00" + strconv.FormatFloat(obj.Value, 'g', -1, 64), nil
+	case *Boolean:
+		return "logika\x00" + strconv.FormatBool(obj.Value), nil
+	case *Nil:
+		return "kosong\x00", nil
+	default:
+		return "", &Error{Message: fmt.Sprintf("kunci peta harus angka, desimal, teks, logika, atau kosong; mendapat %s", typeName(kunci))}
+	}
 }
 
 // repr menambahkan tanda kutip pada teks di dalam daftar agar batas
@@ -417,6 +530,24 @@ func (r *Runtime) eval(node ast.Node, env *Environment) Object {
 	case *ast.CallExpression:
 		return r.evalCallExpression(n, env)
 
+	case *ast.PetaLiteral:
+		peta := NewPeta()
+		for _, entri := range n.Entri {
+			kunci := r.eval(entri.Kunci, env)
+			if isError(kunci) {
+				return kunci
+			}
+			nilai := r.eval(entri.Nilai, env)
+			if isError(nilai) {
+				return nilai
+			}
+			if errObj := peta.Set(kunci, nilai); errObj != nil {
+				errObj.Line = n.Token.Line
+				return errObj
+			}
+		}
+		return peta
+
 	case *ast.ListLiteral:
 		elements := make([]Object, 0, len(n.Elements))
 		for _, e := range n.Elements {
@@ -590,27 +721,46 @@ func (r *Runtime) evalUntukDalamStatement(ud *ast.UntukDalamStatement, env *Envi
 		return iterable
 	}
 
-	run := func(item Object) (bool, Object) {
-		env.Set(ud.Name.Value, item)
+	// Satu nama menerima nilai untuk daftar/teks dan menerima kunci untuk
+	// peta. Dua nama menerima kunci/index dan nilainya.
+	run := func(satu, kunci, nilai Object) (bool, Object) {
+		if len(ud.Names) > 1 {
+			env.Set(ud.Names[0].Value, kunci)
+			env.Set(ud.Names[1].Value, nilai)
+		} else {
+			env.Set(ud.Names[0].Value, satu)
+		}
 		result := r.eval(ud.Body, env)
 		return loopSignal(result)
 	}
 
 	switch obj := iterable.(type) {
 	case *List:
-		for _, item := range obj.Elements {
-			if stop, propagate := run(item); stop {
+		for i, item := range obj.Elements {
+			if stop, propagate := run(item, &Integer{Value: int64(i)}, item); stop {
 				return propagate
 			}
 		}
 	case *String:
-		for _, ch := range obj.Value {
-			if stop, propagate := run(&String{Value: string(ch)}); stop {
+		for i, ch := range []rune(obj.Value) {
+			aksara := &String{Value: string(ch)}
+			if stop, propagate := run(aksara, &Integer{Value: int64(i)}, aksara); stop {
+				return propagate
+			}
+		}
+	case *Peta:
+		for _, kunci := range obj.Kunci() {
+			nilai, _, errObj := obj.Ambil(kunci)
+			if errObj != nil {
+				errObj.Line = ud.Token.Line
+				return errObj
+			}
+			if stop, propagate := run(kunci, kunci, nilai); stop {
 				return propagate
 			}
 		}
 	default:
-		return newError(ud.Token.Line, "untuk ... dalam hanya bisa mengulang daftar atau teks, mendapat %s", typeName(iterable))
+		return newError(ud.Token.Line, "untuk ... dalam hanya bisa mengulang daftar, teks, atau peta; mendapat %s", typeName(iterable))
 	}
 
 	return nil
@@ -702,27 +852,37 @@ func (r *Runtime) evalAssign(ae *ast.AssignExpression, env *Environment) Object 
 		}
 	}
 
+	// Untuk target indeks, kontainer dan kuncinya dievaluasi sekali saja
+	// agar penugasan gabungan membaca nilai lama dengan benar.
+	var container Object
+	var indexObj Object
 	var current Object
-	var list *List
-	index := -1
+
+	if index, ok := ae.Target.(*ast.IndexExpression); ok {
+		left := r.eval(index.Left, env)
+		if isError(left) {
+			return left
+		}
+		key := r.eval(index.Index, env)
+		if isError(key) {
+			return key
+		}
+		container, indexObj = left, key
+	}
 
 	if ae.Operator != "=" {
-		switch target := ae.Target.(type) {
-		case *ast.Identifier:
-			obj, ok := env.Get(target.Value)
-			if !ok {
-				return newError(ae.Token.Line, "variabel '%s' tidak ditemukan", target.Value)
-			}
-			current = obj
-		case *ast.IndexExpression:
-			l, i, errObj := r.resolveListIndex(target, env)
+		if container != nil {
+			value, errObj := readIndex(container, indexObj, ae.Token.Line)
 			if errObj != nil {
 				return errObj
 			}
-			list, index = l, i
-			current = l.Elements[i]
-		default:
-			return newError(ae.Token.Line, "target penugasan harus variabel atau elemen daftar")
+			current = value
+		} else {
+			value := r.eval(ae.Target, env)
+			if isError(value) {
+				return value
+			}
+			current = value
 		}
 	}
 
@@ -749,17 +909,12 @@ func (r *Runtime) evalAssign(ae *ast.AssignExpression, env *Environment) Object 
 		}
 		return value
 	case *ast.IndexExpression:
-		if list == nil {
-			l, i, errObj := r.resolveListIndex(target, env)
-			if errObj != nil {
-				return errObj
-			}
-			list, index = l, i
+		if errObj := writeIndex(container, indexObj, value, ae.Token.Line); errObj != nil {
+			return errObj
 		}
-		list.Elements[index] = value
 		return value
 	default:
-		return newError(ae.Token.Line, "target penugasan harus variabel atau elemen daftar")
+		return newError(ae.Token.Line, "target penugasan harus variabel, elemen daftar, atau kunci peta")
 	}
 }
 
@@ -775,64 +930,82 @@ func (r *Runtime) evalIndexExpression(node *ast.IndexExpression, env *Environmen
 		return indexObj
 	}
 
-	switch obj := left.(type) {
+	value, errObj := readIndex(left, indexObj, node.Token.Line)
+	if errObj != nil {
+		return errObj
+	}
+	return value
+}
+
+// readIndex mengambil elemen daftar/teks, entri peta, atau bidang galat.
+func readIndex(container Object, indexObj Object, line int) (Object, *Error) {
+	switch obj := container.(type) {
+	case *List:
+		index, err := resolveIndex(indexObj, len(obj.Elements))
+		if err != nil {
+			return nil, newError(line, "%s", err.Error())
+		}
+		return obj.Elements[index], nil
+	case *String:
+		runes := []rune(obj.Value)
+		index, err := resolveIndex(indexObj, len(runes))
+		if err != nil {
+			return nil, newError(line, "%s", err.Error())
+		}
+		return &String{Value: string(runes[index])}, nil
+	case *Peta:
+		nilai, ada, errObj := obj.Ambil(indexObj)
+		if errObj != nil {
+			errObj.Line = line
+			return nil, errObj
+		}
+		if !ada {
+			return nil, newError(line, "kunci %s tidak ada di peta; gunakan ada(peta, kunci) atau ambil(peta, kunci, bawaan)", repr(indexObj))
+		}
+		return nilai, nil
 	case *Error:
 		key, ok := indexObj.(*String)
 		if !ok {
-			return newError(node.Token.Line, "galat hanya bisa diindeks dengan teks: \"pesan\", \"baris\", atau \"jejak\"")
+			return nil, newError(line, "galat hanya bisa diindeks dengan teks: \"pesan\", \"baris\", atau \"jejak\"")
 		}
 		switch key.Value {
 		case "pesan":
-			return &String{Value: obj.Message}
+			return &String{Value: obj.Message}, nil
 		case "baris":
-			return &Integer{Value: int64(obj.Line)}
+			return &Integer{Value: int64(obj.Line)}, nil
 		case "jejak":
 			frames := make([]Object, 0, len(obj.Trace))
 			for _, frame := range obj.Trace {
 				frames = append(frames, &String{Value: fmt.Sprintf("%s (baris %d)", frame.Name, frame.Line)})
 			}
-			return &List{Elements: frames}
+			return &List{Elements: frames}, nil
 		default:
-			return newError(node.Token.Line, "kunci galat '%s' tidak dikenal; pakai \"pesan\", \"baris\", atau \"jejak\"", key.Value)
+			return nil, newError(line, "kunci galat '%s' tidak dikenal; pakai \"pesan\", \"baris\", atau \"jejak\"", key.Value)
 		}
-	case *List:
-		index, err := resolveIndex(indexObj, len(obj.Elements))
-		if err != nil {
-			return newError(node.Token.Line, "%s", err.Error())
-		}
-		return obj.Elements[index]
-	case *String:
-		runes := []rune(obj.Value)
-		index, err := resolveIndex(indexObj, len(runes))
-		if err != nil {
-			return newError(node.Token.Line, "%s", err.Error())
-		}
-		return &String{Value: string(runes[index])}
 	default:
-		return newError(node.Token.Line, "tipe %s tidak bisa diindeks", typeName(left))
+		return nil, newError(line, "tipe %s tidak bisa diindeks", typeName(container))
 	}
 }
 
-func (r *Runtime) resolveListIndex(node *ast.IndexExpression, env *Environment) (*List, int, Object) {
-	left := r.eval(node.Left, env)
-	if isError(left) {
-		return nil, 0, left
+// writeIndex menulis elemen daftar atau entri peta.
+func writeIndex(container Object, indexObj Object, value Object, line int) *Error {
+	switch obj := container.(type) {
+	case *List:
+		index, err := resolveIndex(indexObj, len(obj.Elements))
+		if err != nil {
+			return newError(line, "%s", err.Error())
+		}
+		obj.Elements[index] = value
+		return nil
+	case *Peta:
+		if errObj := obj.Set(indexObj, value); errObj != nil {
+			errObj.Line = line
+			return errObj
+		}
+		return nil
+	default:
+		return newError(line, "tipe %s tidak bisa diindeks", typeName(container))
 	}
-	list, ok := left.(*List)
-	if !ok {
-		return nil, 0, newError(node.Token.Line, "tipe %s tidak bisa diindeks", typeName(left))
-	}
-
-	indexObj := r.eval(node.Index, env)
-	if isError(indexObj) {
-		return nil, 0, indexObj
-	}
-
-	index, err := resolveIndex(indexObj, len(list.Elements))
-	if err != nil {
-		return nil, 0, newError(node.Token.Line, "%s", err.Error())
-	}
-	return list, index, nil
 }
 
 // resolveIndex mendukung indeks negatif dari akhir daftar/teks.
@@ -1081,6 +1254,22 @@ func objectsEqual(a, b Object) bool {
 			}
 		}
 		return true
+	case *Peta:
+		bv := b.(*Peta)
+		if av.Panjang() != bv.Panjang() {
+			return false
+		}
+		for _, hash := range av.urut {
+			entri := av.entri[hash]
+			nilai, ada, errObj := bv.Ambil(entri.Kunci)
+			if errObj != nil || !ada {
+				return false
+			}
+			if !objectsEqual(entri.Nilai, nilai) {
+				return false
+			}
+		}
+		return true
 	default:
 		return a == b
 	}
@@ -1246,6 +1435,8 @@ func typeName(obj Object) string {
 		return "kosong"
 	case LIST_OBJ:
 		return "daftar"
+	case PETA_OBJ:
+		return "peta"
 	case FUNCTION_OBJ, BUILTIN_OBJ:
 		return "fungsi"
 	case ERROR_OBJ:

@@ -101,6 +101,7 @@ func New(tokens []token.Token) *Parser {
 	p.registerPrefix(token.PANGGIL, p.parseCallExpression)
 	p.registerPrefix(token.MEMBACA, p.parseInputExpression)
 	p.registerPrefix(token.LBRACKET, p.parseListLiteral)
+	p.registerPrefix(token.PETA, p.parsePetaLiteral)
 
 	p.infixParseFns = make(map[token.TokenType]infixParseFn)
 	p.registerInfix(token.PLUS, p.parseInfixExpression)
@@ -827,11 +828,30 @@ func (p *Parser) parseUntukStatement() ast.Statement {
 		p.skipToNextStatement()
 		return nil
 	}
-	name := &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+	names := []*ast.Identifier{{Token: p.curToken, Value: p.curToken.Literal}}
+
+	// Bentuk dua variabel: untuk k, v dalam peta { ... }
+	if p.peekTokenIs(token.COMMA) {
+		p.nextToken() // koma
+		p.nextToken()
+		if p.curToken.Type != token.IDENT {
+			msg := fmt.Sprintf("baris %d: mengharapkan nama variabel kedua setelah ','", p.curToken.Line)
+			p.errors = append(p.errors, msg)
+			p.skipToNextStatement()
+			return nil
+		}
+		names = append(names, &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal})
+	}
 
 	p.nextToken()
 	switch p.curToken.Type {
 	case token.DARI:
+		if len(names) != 1 {
+			msg := fmt.Sprintf("baris %d: 'untuk ... dari ...' hanya menerima satu variabel", p.curToken.Line)
+			p.errors = append(p.errors, msg)
+			p.skipToNextStatement()
+			return nil
+		}
 		p.nextToken()
 		start := p.parseExpression(LOWEST)
 
@@ -851,7 +871,7 @@ func (p *Parser) parseUntukStatement() ast.Statement {
 		p.nextToken()
 		return &ast.UntukStatement{
 			Token: tok,
-			Name:  name,
+			Name:  names[0],
 			Start: start,
 			End:   end,
 			Step:  step,
@@ -865,7 +885,7 @@ func (p *Parser) parseUntukStatement() ast.Statement {
 		p.nextToken()
 		return &ast.UntukDalamStatement{
 			Token:    tok,
-			Name:     name,
+			Names:    names,
 			Iterable: iterable,
 			Body:     p.parseBody(),
 		}
@@ -876,6 +896,56 @@ func (p *Parser) parseUntukStatement() ast.Statement {
 		p.skipToNextStatement()
 		return nil
 	}
+}
+
+// --- Peta Literal ---
+
+func (p *Parser) parsePetaLiteral() ast.Expression {
+	lit := &ast.PetaLiteral{Token: p.curToken}
+
+	if !p.peekTokenIs(token.LBRACE) {
+		msg := fmt.Sprintf("baris %d: mengharapkan '{' setelah 'peta', mendapat '%s'",
+			p.peekToken.Line, p.peekToken.Literal)
+		p.errors = append(p.errors, msg)
+		return nil
+	}
+	p.nextToken() // kurung kurawal buka
+
+	if p.peekTokenIs(token.RBRACE) {
+		p.nextToken() // peta kosong
+		return lit
+	}
+
+	p.nextToken()
+	for {
+		kunci := p.parseExpression(LOWEST)
+		if !p.expectPeek(token.TITIK_DUA) {
+			return nil
+		}
+
+		p.nextToken()
+		nilai := p.parseExpression(LOWEST)
+		lit.Entri = append(lit.Entri, ast.PetaEntri{Kunci: kunci, Nilai: nilai})
+
+		if p.peekTokenIs(token.COMMA) {
+			p.nextToken()
+			p.nextToken()
+			if p.curTokenIs(token.RBRACE) {
+				break
+			}
+			continue
+		}
+		break
+	}
+
+	if p.curTokenIs(token.RBRACE) {
+		return lit
+	}
+	if !p.expectPeek(token.RBRACE) {
+		return nil
+	}
+
+	return lit
 }
 
 // --- Pilih Statement ---

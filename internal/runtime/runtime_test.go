@@ -48,6 +48,94 @@ func executeWithLimits(t *testing.T, source string, limits runtime.Limits) (stri
 	return out.String(), result
 }
 
+func TestPetaDasar(t *testing.T) {
+	expectOutput(t, `
+buat data = peta { "nama": "Budi", "umur": 17 }
+tulis data["nama"]
+tulis panjang(data)
+tulis ada(data, "umur")
+tulis ada(data, "nilai")
+tulis ambil(data, "nilai", "tidak ada")
+
+data["umur"] += 1
+tulis data["umur"]
+data["kelas"] = "XI"
+tulis kunci(data)
+tulis nilai(data)
+
+hapus(data, "kelas")
+tulis data
+tulis data == peta { "nama": "Budi", "umur": 18 }
+`, `Budi
+2
+benar
+salah
+tidak ada
+18
+["nama", "umur", "kelas"]
+["Budi", 18, "XI"]
+peta{"nama": "Budi", "umur": 18}
+benar`)
+}
+
+func TestPetaIterasiDanKosong(t *testing.T) {
+	expectOutput(t, `
+buat data = peta { "a": 1, "b": 2 }
+
+untuk k, v dalam data {
+    tulis k + "=" + v
+}
+
+untuk k dalam data {
+    tulis k
+}
+
+buat petaKosong = peta {}
+tulis petaKosong
+tulis panjang(petaKosong)
+`, "a=1\nb=2\na\nb\npeta{}\n0")
+}
+
+func TestUntukDuaVariabelDaftarDanTeks(t *testing.T) {
+	expectOutput(t, `
+untuk i, v dalam [10, 20] {
+    tulis ke_teks(i) + ":" + v
+}
+
+untuk i, c dalam "ab" {
+    tulis ke_teks(i) + c
+}
+`, "0:10\n1:20\n0a\n1b")
+}
+
+func TestPetaGalat(t *testing.T) {
+	tests := []struct {
+		name   string
+		source string
+		want   string
+	}{
+		{"kunci tidak ada", `buat d = peta { "a": 1 }
+tulis d["b"]`, "tidak ada di peta"},
+		{"kunci tidak valid", `buat d = peta {}
+d[[1, 2]] = 1`, "kunci peta harus"},
+		{"hapus kunci hilang", `buat d = peta { "a": 1 }
+hapus(d, "b")`, "tidak ada di peta"},
+		{"iterasi bukan koleksi", `untuk x dalam 12 { tulis x }`, "hanya bisa mengulang"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, result := execute(t, test.source)
+			if result == nil || result.Type() != runtime.ERROR_OBJ {
+				t.Fatalf("ingin galat runtime, dapat %#v", result)
+			}
+			if !strings.Contains(result.Inspect(), test.want) {
+				t.Errorf("galat = %q, ingin mengandung %q", result.Inspect(), test.want)
+			}
+		})
+	}
+}
+
 func TestKonstantaTetap(t *testing.T) {
 	expectOutput(t, `
 tetap PI = 3.14
