@@ -25,6 +25,11 @@ const (
 	SAMPAI      TokenType = "SAMPAI"
 	LANGKAH     TokenType = "LANGKAH"
 	DALAM       TokenType = "DALAM"
+	TETAP       TokenType = "TETAP"
+	PETA        TokenType = "PETA"
+	COBA        TokenType = "COBA"
+	TANGKAP     TokenType = "TANGKAP"
+	LEMPAR      TokenType = "LEMPAR"
 	PILIH       TokenType = "PILIH"
 	KASUS       TokenType = "KASUS"
 	BAWAAN      TokenType = "BAWAAN"
@@ -68,14 +73,15 @@ const (
 	MODULO          TokenType = "MODULO"
 
 	// Delimiters
-	LPAREN   TokenType = "LPAREN"
-	RPAREN   TokenType = "RPAREN"
-	LBRACE   TokenType = "LBRACE"
-	RBRACE   TokenType = "RBRACE"
-	LBRACKET TokenType = "LBRACKET"
-	RBRACKET TokenType = "RBRACKET"
-	COMMA    TokenType = "COMMA"
-	NEWLINE  TokenType = "NEWLINE"
+	LPAREN    TokenType = "LPAREN"
+	RPAREN    TokenType = "RPAREN"
+	LBRACE    TokenType = "LBRACE"
+	RBRACE    TokenType = "RBRACE"
+	LBRACKET  TokenType = "LBRACKET"
+	RBRACKET  TokenType = "RBRACKET"
+	COMMA     TokenType = "COMMA"
+	TITIK_DUA TokenType = "TITIK_DUA"
+	NEWLINE   TokenType = "NEWLINE"
 )
 
 var Keywords = map[string]TokenType{
@@ -90,6 +96,11 @@ var Keywords = map[string]TokenType{
 	"sampai":      SAMPAI,
 	"langkah":     LANGKAH,
 	"dalam":       DALAM,
+	"tetap":       TETAP,
+	"peta":        PETA,
+	"coba":        COBA,
+	"tangkap":     TANGKAP,
+	"lemparkan":   LEMPAR,
 	"pilih":       PILIH,
 	"kasus":       KASUS,
 	"bawaan":      BAWAAN,

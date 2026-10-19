@@ -18,7 +18,7 @@ func meaningfulTokens(input string) []token.Token {
 }
 
 func TestOperatorsAndDelimiters(t *testing.T) {
-	input := "= == != > >= < <= + += - -= * *= / /= % %= ( ) { } [ ] ,"
+	input := "= == != > >= < <= + += - -= * *= / /= % %= ( ) { } [ ] , :"
 
 	expected := []struct {
 		typ token.TokenType
@@ -48,6 +48,7 @@ func TestOperatorsAndDelimiters(t *testing.T) {
 		{token.LBRACKET, "["},
 		{token.RBRACKET, "]"},
 		{token.COMMA, ","},
+		{token.TITIK_DUA, ":"},
 		{token.EOF, ""},
 	}
 
@@ -82,6 +83,11 @@ func TestKeywords(t *testing.T) {
 		{"sampai", token.SAMPAI},
 		{"langkah", token.LANGKAH},
 		{"dalam", token.DALAM},
+		{"tetap", token.TETAP},
+		{"peta", token.PETA},
+		{"coba", token.COBA},
+		{"tangkap", token.TANGKAP},
+		{"lemparkan", token.LEMPAR},
 		{"pilih", token.PILIH},
 		{"kasus", token.KASUS},
 		{"bawaan", token.BAWAAN},
