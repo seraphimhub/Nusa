@@ -1,0 +1,27 @@
+# Nusa - Faktorial Rekursif dan Iteratif
+# ======================================
+
+fungsi faktorial(n) {
+    jika n <= 1 {
+        kembali 1
+    }
+    kembali n * faktorial(n - 1)
+}
+
+fungsi faktorial_iteratif(n) {
+    buat hasil = 1
+    untuk i dari 2 sampai n {
+        hasil *= i
+    }
+    kembali hasil
+}
+
+tulis "n   rekursif   iteratif"
+tulis "--------------------------"
+
+untuk n dari 1 sampai 10 {
+    tulis ke_teks(n) + "   " + faktorial(n) + "          " + faktorial_iteratif(n)
+}
+
+tulis ""
+tulis "Jumlah 1 sampai 100: " + jumlah(rentang(1, 101))
