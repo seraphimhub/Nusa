@@ -1,7 +1,10 @@
 # Riwayat Perubahan
 
 Semua perubahan penting proyek Nusa dicatat di berkas ini.
-Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/).
+Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/) dan
+[Semantic Versioning](https://semver.org/lang/id/). Setiap versi rilis ditandai
+annotated tag `vX.Y.Z` serta GitHub Release. Prosedur rilis ada di
+[docs/rilis.md](docs/rilis.md).
 
 ## [1.1.0] - 2026-10-19
 
@@ -52,7 +55,10 @@ serta pustaka fungsi bawaan.
 
 - Binary hasil build tidak lagi disertakan di repositori.
 
-## [1.0.0] - 2026-04-14
+## [1.0.0] - 2026-07-01
+
+Rilis stabil pertama: interpreter lengkap dengan sintaks Indonesia, memakai
+nomor versi `1.0.0` pada CLI.
 
 ### Ditambahkan
 
@@ -64,5 +70,27 @@ serta pustaka fungsi bawaan.
 - Operator aritmatika, perbandingan, dan logika.
 - CLI `run`, `repl`, `help`, dan `version`.
 
-[1.1.0]: https://github.com/seraphimhub/Nusa/compare/v1.0.0...HEAD
+## Tonggak pra-1.0 (2026-04-14)
+
+Versi awal dicatat sebagai tag ringan tanpa catatan rilis. Sejak 1.0.0 semua
+rilis memakai annotated tag dan GitHub Release.
+
+| Tag | Isi |
+| --- | --- |
+| [v0.3.0][v030] | Pernyataan `jika` dengan operator perbandingan |
+| [v0.4.0][v040] | Perulangan `ulang` dan penanganan token `NEWLINE` |
+| [v0.5.0][v050] | Fungsi dengan parameter dan pemanggilan `panggil` |
+| [v0.6.0][v060] | Perbaikan duplikasi token operator plus |
+| [v0.7.0][v070] | Operator aritmatika lengkap (`+`, `-`, `*`, `/`, `%`) |
+| [v0.7.1][v071] | Operator perbandingan lengkap (`==`, `!=`, `>=`, `<=`) |
+| [v0.7.2][v072] | Cabang `kalau_tidak` untuk pernyataan `jika` |
+
+[1.1.0]: https://github.com/seraphimhub/Nusa/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/seraphimhub/Nusa/releases/tag/v1.0.0
+[v030]: https://github.com/seraphimhub/Nusa/releases/tag/v0.3.0
+[v040]: https://github.com/seraphimhub/Nusa/releases/tag/v0.4.0
+[v050]: https://github.com/seraphimhub/Nusa/releases/tag/v0.5.0
+[v060]: https://github.com/seraphimhub/Nusa/releases/tag/v0.6.0
+[v070]: https://github.com/seraphimhub/Nusa/releases/tag/v0.7.0
+[v071]: https://github.com/seraphimhub/Nusa/releases/tag/v0.7.1
+[v072]: https://github.com/seraphimhub/Nusa/releases/tag/v0.7.2

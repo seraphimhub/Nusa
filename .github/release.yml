@@ -1,0 +1,32 @@
+# Konfigurasi catatan rilis otomatis (digunakan oleh --generate-notes).
+# Kategori di bawah menyusun pull request ke dalam kelompok yang mudah dibaca.
+changelog:
+  exclude:
+    labels:
+      - abaikan
+    authors:
+      - dependabot[bot]
+  categories:
+    - title: Fitur baru
+      labels:
+        - fitur
+        - enhancement
+        - feature
+    - title: Perbaikan
+      labels:
+        - bug
+        - perbaikan
+        - fix
+    - title: Dokumentasi
+      labels:
+        - dokumentasi
+        - docs
+    - title: Perkakas, CI, dan build
+      labels:
+        - ci
+        - build
+        - chore
+        - dependencies
+    - title: Perubahan lain
+      labels:
+        - "*"

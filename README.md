@@ -1,6 +1,7 @@
 # Nusa
 
 [![CI](https://github.com/seraphimhub/Nusa/actions/workflows/ci.yml/badge.svg)](https://github.com/seraphimhub/Nusa/actions/workflows/ci.yml)
+[![Rilis terbaru](https://img.shields.io/github/v/release/seraphimhub/Nusa?label=rilis)](https://github.com/seraphimhub/Nusa/releases/latest)
 [![Go](https://img.shields.io/badge/Go-1.22%2B-00ADD8?logo=go&logoColor=white)](https://go.dev)
 [![Lisensi: MIT](https://img.shields.io/badge/Lisensi-MIT-green.svg)](LICENSE)
 
@@ -130,7 +131,8 @@ internal/ast/        Definisi pohon sintaks abstrak
 internal/parser/     Pratt parser
 internal/runtime/    Evaluator, objek runtime, dan fungsi bawaan
 examples/            Program contoh .nusa
-docs/                Dokumentasi bahasa
+docs/                Dokumentasi bahasa dan kebijakan rilis
+.github/             Workflow CI dan konfigurasi catatan rilis
 ```
 
 Alur eksekusi:
@@ -168,6 +170,20 @@ go test ./...
 - [ ] Modul dan `impor`
 - [ ] Pengetikan opsional dan pemeriksa tipe
 - [ ] Pemformatan kode otomatis (`nusa fmt`)
+
+## Rilis
+
+Setiap rilis memakai annotated tag `vX.Y.Z` beserta GitHub Release dengan
+catatan dari [CHANGELOG.md](CHANGELOG.md). Versi terbaru: **v1.1.0**
+(2026-10-19). Kebijakan versi dan prosedur rilis ada di [docs/rilis.md](docs/rilis.md).
+
+| Versi | Fokus |
+| --- | --- |
+| [v1.1.0](https://github.com/seraphimhub/Nusa/releases/tag/v1.1.0) | Daftar, `untuk`, `pilih`, 23 fungsi bawaan, 88 test |
+| [v1.0.0](https://github.com/seraphimhub/Nusa/releases/tag/v1.0.0) | Rilis stabil pertama: lexer, parser, evaluator, CLI |
+| v0.3.0 – v0.7.2 | Tonggak pengembangan pra-1.0 |
+
+Daftar lengkap: <https://github.com/seraphimhub/Nusa/releases>
 
 ## Keamanan
 
