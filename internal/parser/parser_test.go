@@ -136,6 +136,57 @@ untuk x dalam [1, 2, 3] {
 	}
 }
 
+func TestParsePilih(t *testing.T) {
+	program := mustParse(t, `
+pilih nilai {
+    kasus 1 {
+        tulis "satu"
+    }
+    kasus 2 { tulis "dua" }
+    bawaan {
+        tulis "lain"
+    }
+}
+`)
+
+	pilih, ok := program.Statements[0].(*ast.PilihStatement)
+	if !ok {
+		t.Fatalf("bukan PilihStatement: %T", program.Statements[0])
+	}
+	if pilih.Subjek.String() != "nilai" {
+		t.Errorf("subjek = %q, ingin nilai", pilih.Subjek.String())
+	}
+	if len(pilih.Kasus) != 2 {
+		t.Fatalf("jumlah kasus = %d, ingin 2", len(pilih.Kasus))
+	}
+	if pilih.Kasus[0].Nilai.String() != "1" || pilih.Kasus[1].Nilai.String() != "2" {
+		t.Errorf("nilai kasus salah: %s, %s", pilih.Kasus[0].Nilai, pilih.Kasus[1].Nilai)
+	}
+	if len(pilih.Kasus[0].Body.Statements) != 1 {
+		t.Errorf("body kasus pertama = %d statement", len(pilih.Kasus[0].Body.Statements))
+	}
+	if pilih.Bawaan == nil {
+		t.Errorf("bawaan nil")
+	}
+}
+
+func TestParsePilihErrors(t *testing.T) {
+	tests := []string{
+		`pilih { kasus 1 { tulis 1 } }`,
+		`pilih 1 { tulis 1 }`,
+		`pilih 1 { kasus 1 tulis 1 }`,
+	}
+
+	for _, input := range tests {
+		t.Run(input, func(t *testing.T) {
+			_, errors := parseProgram(t, input)
+			if len(errors) == 0 {
+				t.Fatalf("ingin galat parser untuk %q", input)
+			}
+		})
+	}
+}
+
 func TestParseFunctionAndCalls(t *testing.T) {
 	program := mustParse(t, `
 fungsi tambah(a, b) {
