@@ -10,11 +10,12 @@ Dokumen ini merangkum seluruh sintaks dan perilaku bahasa Nusa versi 1.1.0.
 4. [Operator](#operator)
 5. [Percabangan](#percabangan)
 6. [Perulangan](#perulangan)
-7. [Fungsi](#fungsi)
-8. [Daftar](#daftar)
-9. [Input](#input)
-10. [Fungsi Bawaan](#fungsi-bawaan)
-11. [Pesan Galat](#pesan-galat)
+7. [Pernyataan Pilih](#pernyataan-pilih)
+8. [Fungsi](#fungsi)
+9. [Daftar](#daftar)
+10. [Input](#input)
+11. [Fungsi Bawaan](#fungsi-bawaan)
+12. [Pesan Galat](#pesan-galat)
 
 ## Komentar
 
@@ -148,6 +149,39 @@ Di dalam perulangan tersedia:
 
 Nilai `langkah` tidak boleh nol. Jika nilai awal lebih besar dari nilai akhir
 dengan langkah positif, body tidak dijalankan.
+
+## Pernyataan Pilih
+
+`pilih` mencocokkan sebuah nilai dengan beberapa `kasus`. Cabang pertama yang
+cocok dijalankan, dan `bawaan` dijalankan bila tidak ada yang cocok.
+
+```nusa
+pilih hari {
+    kasus 1 { tulis "Senin" }
+    kasus 2 { tulis "Selasa" }
+    kasus 3 { tulis "Rabu" }
+    bawaan { tulis "Bukan hari kerja" }
+}
+```
+
+Keterangan:
+
+- Pencocokan memakai aturan `==` sehingga angka, desimal, teks, logika,
+  `kosong`, dan daftar semuanya bisa dipakai sebagai nilai kasus.
+- Tidak ada fallthrough: hanya satu cabang yang dijalankan.
+- `bawaan` bersifat opsional dan hanya boleh muncul sekali.
+- `kembali` di dalam cabang akan keluar dari fungsi, dan `berhenti` /
+  `lanjutkan` berlaku untuk perulangan terdekat yang membungkus `pilih`.
+
+```nusa
+fungsi namaBulan(bulan) {
+    pilih bulan {
+        kasus 1 { kembali "Januari" }
+        kasus 2 { kembali "Februari" }
+        bawaan { kembali "Bulan lain" }
+    }
+}
+```
 
 ## Fungsi
 
