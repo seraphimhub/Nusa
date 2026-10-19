@@ -24,14 +24,17 @@ func New(input string) *Lexer {
 func (l *Lexer) readChar() {
 	if l.readPosition >= len(l.input) {
 		l.ch = 0
+		// Pertahankan position di akhir input agar perhitungan kolom
+		// dan pengecekan baris tidak melewati batas slice.
+		l.position = len(l.input)
 	} else {
 		l.ch = l.input[l.readPosition]
+		l.position = l.readPosition
+		l.readPosition++
 	}
-	l.position = l.readPosition
-	l.readPosition++
 
 	// Catat awal baris agar nomor kolom bisa dihitung.
-	if l.position > 0 && l.input[l.position-1] == '\n' {
+	if l.position > 0 && l.position <= len(l.input) && l.input[l.position-1] == '\n' {
 		l.lineStart = l.position
 	}
 }
