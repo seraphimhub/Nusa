@@ -169,6 +169,13 @@ go test ./...
 - [ ] Pengetikan opsional dan pemeriksa tipe
 - [ ] Pemformatan kode otomatis (`nusa fmt`)
 
+## Keamanan
+
+Cabang `main` dilindungi: force-push dan penghapusan cabang diblokir, riwayat
+linear, serta check CI wajib lulus sebelum pull request di-merge (push langsung
+masih diizinkan). Untuk melaporkan kerentanan, gunakan GitHub Security Advisory
+privat — lihat [SECURITY.md](SECURITY.md).
+
 ## Lisensi
 
 MIT — lihat [LICENSE](LICENSE).
