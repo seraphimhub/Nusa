@@ -27,7 +27,7 @@ pemrograman sekaligus dipakai untuk skrip kecil sehari-hari.
 - **REPL interaktif** dengan input multi-baris dan penampilan nilai ekspresi.
 - **Perkakas**: perintah `ast` dan `token` untuk memeriksa hasil lexer/parser.
 - **Pesan galat berbahasa Indonesia** beserta nomor baris.
-- **78 test** (lexer, parser, runtime, dan CLI) tanpa dependensi luar.
+- **88 test** (lexer, parser, runtime, dan CLI) tanpa dependensi luar.
 
 ## Instalasi
 
