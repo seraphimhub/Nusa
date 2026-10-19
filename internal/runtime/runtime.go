@@ -27,6 +27,7 @@ const (
 	BREAK_OBJ    ObjectType = "BREAK"
 	CONTINUE_OBJ ObjectType = "CONTINUE"
 	FUNCTION_OBJ ObjectType = "FUNCTION"
+	BUILTIN_OBJ  ObjectType = "BUILTIN"
 	ERROR_OBJ    ObjectType = "ERROR"
 )
 
@@ -167,10 +168,11 @@ func (e *Environment) Assign(name string, val Object) bool {
 // --- Runtime (Evaluator) ---
 
 type Runtime struct {
-	env    *Environment
-	Out    io.Writer
-	In     io.Reader
-	reader *bufio.Reader
+	env      *Environment
+	Out      io.Writer
+	In       io.Reader
+	reader   *bufio.Reader
+	builtins map[string]*Builtin
 }
 
 func New() *Runtime {
@@ -181,7 +183,12 @@ func NewWithIO(out io.Writer, in io.Reader) *Runtime {
 	if out == nil {
 		out = io.Discard
 	}
-	return &Runtime{env: NewEnvironment(), Out: out, In: in}
+	return &Runtime{
+		env:      NewEnvironment(),
+		Out:      out,
+		In:       in,
+		builtins: newBuiltins(),
+	}
 }
 
 // Execute menjalankan program. Nilai kembalian berupa Object: galat
@@ -548,10 +555,13 @@ func (r *Runtime) evalWhileStatement(ws *ast.WhileStatement, env *Environment) O
 
 func (r *Runtime) evalIdentifier(node *ast.Identifier, env *Environment) Object {
 	val, ok := env.Get(node.Value)
-	if !ok {
-		return newError(node.Token.Line, "variabel '%s' tidak ditemukan", node.Value)
+	if ok {
+		return val
 	}
-	return val
+	if builtin, ok := r.builtins[node.Value]; ok {
+		return builtin
+	}
+	return newError(node.Token.Line, "variabel '%s' tidak ditemukan", node.Value)
 }
 
 // --- Assignment ---
@@ -930,44 +940,48 @@ func (r *Runtime) evalCallExpression(call *ast.CallExpression, env *Environment)
 		return errObj
 	}
 
-	functionObj, ok := fn.(*FunctionObject)
-	if !ok {
-		return newError(call.Token.Line, "'%s' bukan sebuah fungsi", call.Function.String())
-	}
-
 	args := r.evalExpressions(call.Arguments, env)
 	if len(args) == 1 && isError(args[0]) {
 		return args[0]
 	}
 
-	if len(args) != len(functionObj.Params) {
-		name := functionObj.Name
-		if name == "" {
-			name = call.Function.String()
+	switch f := fn.(type) {
+	case *Builtin:
+		return f.Fn(args...)
+	case *FunctionObject:
+		if len(args) != len(f.Params) {
+			name := f.Name
+			if name == "" {
+				name = call.Function.String()
+			}
+			return newError(call.Token.Line, "fungsi '%s' membutuhkan %d parameter, tapi diberikan %d",
+				name, len(f.Params), len(args))
 		}
-		return newError(call.Token.Line, "fungsi '%s' membutuhkan %d parameter, tapi diberikan %d",
-			name, len(functionObj.Params), len(args))
-	}
 
-	enclosed := NewEnclosedEnvironment(functionObj.Env)
-	for i, param := range functionObj.Params {
-		enclosed.Set(param.Value, args[i])
-	}
+		enclosed := NewEnclosedEnvironment(f.Env)
+		for i, param := range f.Params {
+			enclosed.Set(param.Value, args[i])
+		}
 
-	result := r.eval(functionObj.Body, enclosed)
-	if result != nil && result.Type() == RETURN_OBJ {
-		return result.(*ReturnValue).Value
+		result := r.eval(f.Body, enclosed)
+		if result != nil && result.Type() == RETURN_OBJ {
+			return result.(*ReturnValue).Value
+		}
+		return result
+	default:
+		return newError(call.Token.Line, "'%s' bukan sebuah fungsi", call.Function.String())
 	}
-	return result
 }
 
 func (r *Runtime) resolveFunction(call *ast.CallExpression, env *Environment) (Object, Object) {
 	if ident, ok := call.Function.(*ast.Identifier); ok {
-		fn, found := env.Get(ident.Value)
-		if !found {
-			return nil, newError(call.Token.Line, "fungsi '%s' tidak ditemukan", ident.Value)
+		if fn, found := env.Get(ident.Value); found {
+			return fn, nil
 		}
-		return fn, nil
+		if builtin, found := r.builtins[ident.Value]; found {
+			return builtin, nil
+		}
+		return nil, newError(call.Token.Line, "fungsi '%s' tidak ditemukan", ident.Value)
 	}
 
 	fn := r.eval(call.Function, env)
@@ -1031,7 +1045,7 @@ func typeName(obj Object) string {
 		return "kosong"
 	case LIST_OBJ:
 		return "daftar"
-	case FUNCTION_OBJ:
+	case FUNCTION_OBJ, BUILTIN_OBJ:
 		return "fungsi"
 	case ERROR_OBJ:
 		return "galat"
