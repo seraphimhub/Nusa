@@ -14,6 +14,8 @@ serta pustaka fungsi bawaan.
   elemen.
 - Perulangan `untuk i dari a sampai b [langkah n]` dan `untuk x dalam daftar`.
 - Operator penugasan gabungan `+=`, `-=`, `*=`, `/=`, `%=`.
+- Pernyataan pencocokan nilai `pilih` dengan cabang `kasus` dan `bawaan`
+  opsional; cabang pertama yang cocok dijalankan tanpa fallthrough.
 - Pemanggilan fungsi langsung tanpa kata kunci `panggil`.
 - Escape string `\n`, `\t`, `\r`, `\\`, `\"`, `\'`, `\0` dan literal kutip
   tunggal.
