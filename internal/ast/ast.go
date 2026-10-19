@@ -183,10 +183,10 @@ func (ws *WhileStatement) String() string {
 }
 
 type FunctionStatement struct {
-	Token    token.Token // token.FUNGSI
-	Name     *Identifier
-	Params   []*Identifier
-	Body     *BlockStatement
+	Token  token.Token // token.FUNGSI
+	Name   *Identifier
+	Params []*Identifier
+	Body   *BlockStatement
 }
 
 func (fs *FunctionStatement) statementNode()       {}
@@ -368,4 +368,90 @@ func (ce *CallExpression) String() string {
 	out.WriteString(strings.Join(args, ", "))
 	out.WriteString(")")
 	return out.String()
+}
+
+// ListLiteral: [1, 2, 3]
+type ListLiteral struct {
+	Token    token.Token // token.LBRACKET
+	Elements []Expression
+}
+
+func (ll *ListLiteral) expressionNode()      {}
+func (ll *ListLiteral) TokenLiteral() string { return ll.Token.Literal }
+func (ll *ListLiteral) String() string {
+	elems := make([]string, 0, len(ll.Elements))
+	for _, e := range ll.Elements {
+		elems = append(elems, e.String())
+	}
+	return "[" + strings.Join(elems, ", ") + "]"
+}
+
+// IndexExpression: daftar[0]
+type IndexExpression struct {
+	Token token.Token // token.LBRACKET
+	Left  Expression
+	Index Expression
+}
+
+func (ie *IndexExpression) expressionNode()      {}
+func (ie *IndexExpression) TokenLiteral() string { return ie.Token.Literal }
+func (ie *IndexExpression) String() string {
+	return "(" + ie.Left.String() + "[" + ie.Index.String() + "])"
+}
+
+// AssignExpression: target = value atau target += value
+type AssignExpression struct {
+	Token    token.Token // token.ASSIGN atau operator gabungan
+	Target   Expression
+	Operator string
+	Value    Expression
+}
+
+func (ae *AssignExpression) expressionNode()      {}
+func (ae *AssignExpression) TokenLiteral() string { return ae.Token.Literal }
+func (ae *AssignExpression) String() string {
+	return ae.Target.String() + " " + ae.Operator + " " + ae.Value.String()
+}
+
+// UntukStatement: untuk i dari 1 sampai 10 langkah 2 { ... }
+type UntukStatement struct {
+	Token token.Token // token.UNTUK
+	Name  *Identifier
+	Start Expression
+	End   Expression
+	Step  Expression // opsional, default 1
+	Body  *BlockStatement
+}
+
+func (us *UntukStatement) statementNode()       {}
+func (us *UntukStatement) TokenLiteral() string { return us.Token.Literal }
+func (us *UntukStatement) String() string {
+	var out bytes.Buffer
+	out.WriteString("untuk ")
+	out.WriteString(us.Name.String())
+	out.WriteString(" dari ")
+	out.WriteString(us.Start.String())
+	out.WriteString(" sampai ")
+	out.WriteString(us.End.String())
+	if us.Step != nil {
+		out.WriteString(" langkah ")
+		out.WriteString(us.Step.String())
+	}
+	out.WriteString(" ")
+	out.WriteString(us.Body.String())
+	return out.String()
+}
+
+// UntukDalamStatement: untuk x dalam daftar { ... }
+type UntukDalamStatement struct {
+	Token    token.Token // token.UNTUK
+	Name     *Identifier
+	Iterable Expression
+	Body     *BlockStatement
+}
+
+func (ud *UntukDalamStatement) statementNode()       {}
+func (ud *UntukDalamStatement) TokenLiteral() string { return ud.Token.Literal }
+func (ud *UntukDalamStatement) String() string {
+	return "untuk " + ud.Name.String() + " dalam " + ud.Iterable.String() + " " + ud.Body.String()
 }
