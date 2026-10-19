@@ -201,6 +201,9 @@ func (p *Parser) skipToNextStatement() {
 			p.curToken.Type == token.ULANG ||
 			p.curToken.Type == token.SELAMA ||
 			p.curToken.Type == token.UNTUK ||
+			p.curToken.Type == token.PILIH ||
+			p.curToken.Type == token.KASUS ||
+			p.curToken.Type == token.BAWAAN ||
 			p.curToken.Type == token.FUNGSI ||
 			p.curToken.Type == token.PANGGIL ||
 			p.curToken.Type == token.KEMBALI ||
@@ -247,6 +250,8 @@ func (p *Parser) parseStatement() ast.Statement {
 		return p.parseWhileStatement()
 	case token.UNTUK:
 		return p.parseUntukStatement()
+	case token.PILIH:
+		return p.parsePilihStatement()
 	case token.FUNGSI:
 		return p.parseFunctionStatement()
 	case token.PANGGIL:
@@ -871,6 +876,67 @@ func (p *Parser) parseUntukStatement() ast.Statement {
 	}
 }
 
+// --- Pilih Statement ---
+
+func (p *Parser) parsePilihStatement() ast.Statement {
+	stmt := &ast.PilihStatement{Token: p.curToken}
+
+	p.nextToken()
+	stmt.Subjek = p.parseExpression(LOWEST)
+
+	p.nextToken()
+	if p.curToken.Type != token.LBRACE {
+		msg := fmt.Sprintf("baris %d: mengharapkan '{' setelah ekspresi 'pilih', mendapat '%s'",
+			p.curToken.Line, p.curToken.Literal)
+		p.errors = append(p.errors, msg)
+		p.skipToNextStatement()
+		return nil
+	}
+
+	p.nextToken()
+	for p.curToken.Type != token.RBRACE && p.curToken.Type != token.EOF {
+		switch p.curToken.Type {
+		case token.KASUS:
+			kasus := ast.KasusBlok{Token: p.curToken}
+
+			p.nextToken()
+			kasus.Nilai = p.parseExpression(LOWEST)
+
+			p.nextToken()
+			if p.curToken.Type != token.LBRACE {
+				msg := fmt.Sprintf("baris %d: mengharapkan '{' setelah nilai 'kasus', mendapat '%s'",
+					p.curToken.Line, p.curToken.Literal)
+				p.errors = append(p.errors, msg)
+				p.skipToNextStatement()
+				return nil
+			}
+			kasus.Body = p.parseBlockStatement()
+			stmt.Kasus = append(stmt.Kasus, kasus)
+
+		case token.BAWAAN:
+			p.nextToken()
+			if p.curToken.Type != token.LBRACE {
+				msg := fmt.Sprintf("baris %d: mengharapkan '{' setelah 'bawaan', mendapat '%s'",
+					p.curToken.Line, p.curToken.Literal)
+				p.errors = append(p.errors, msg)
+				p.skipToNextStatement()
+				return nil
+			}
+			stmt.Bawaan = p.parseBlockStatement()
+
+		default:
+			msg := fmt.Sprintf("baris %d: hanya 'kasus' atau 'bawaan' yang boleh berada di dalam 'pilih', mendapat '%s'",
+				p.curToken.Line, p.curToken.Literal)
+			p.errors = append(p.errors, msg)
+			p.skipToNextStatement()
+		}
+
+		p.nextToken()
+	}
+
+	return stmt
+}
+
 // parseBody menerima blok { ... } atau satu statement tanpa kurung kurawal.
 func (p *Parser) parseBody() *ast.BlockStatement {
 	if p.curToken.Type == token.LBRACE {
@@ -896,7 +962,8 @@ func isAssignOperator(t token.TokenType) bool {
 
 func isStatementStart(t token.TokenType) bool {
 	return t == token.BUAT || t == token.TULIS || t == token.JIKA ||
-		t == token.ULANG || t == token.SELAMA || t == token.UNTUK || t == token.FUNGSI ||
+		t == token.ULANG || t == token.SELAMA || t == token.UNTUK ||
+		t == token.PILIH || t == token.KASUS || t == token.BAWAAN || t == token.FUNGSI ||
 		t == token.PANGGIL || t == token.KEMBALI || t == token.BERHENTI ||
 		t == token.LANJUTKAN || t == token.MEMBACA || t == token.KALAU_TIDAK ||
 		t == token.RBRACE || t == token.EOF
