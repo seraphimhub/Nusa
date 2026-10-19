@@ -1,0 +1,47 @@
+# Nusa - Pernyataan pilih (switch)
+# ================================
+
+buat hari = 3
+
+pilih hari {
+    kasus 1 { tulis "Senin" }
+    kasus 2 { tulis "Selasa" }
+    kasus 3 { tulis "Rabu" }
+    kasus 4 { tulis "Kamis" }
+    kasus 5 { tulis "Jumat" }
+    bawaan { tulis "Akhir pekan" }
+}
+
+# Fungsi dengan pilih dan kembali
+fungsi namaBulan(bulan) {
+    pilih bulan {
+        kasus 1 { kembali "Januari" }
+        kasus 2 { kembali "Februari" }
+        kasus 3 { kembali "Maret" }
+        bawaan { kembali "Bulan lain" }
+    }
+}
+
+tulis namaBulan(1)
+tulis namaBulan(3)
+tulis namaBulan(12)
+
+# Pencocokan teks dan daftar
+pilih "nusa" {
+    kasus "nusa" { tulis "Teks cocok!" }
+}
+
+pilih [1, 2] {
+    kasus [1, 2] { tulis "Daftar cocok!" }
+}
+
+# Pilih di dalam perulangan
+tulis ""
+tulis "Sisa bagi tiga untuk 1-6:"
+untuk i dari 1 sampai 6 {
+    pilih i % 3 {
+        kasus 0 { tulis ke_teks(i) + " habis dibagi 3" }
+        kasus 1 { tulis ke_teks(i) + " sisa 1" }
+        kasus 2 { tulis ke_teks(i) + " sisa 2" }
+    }
+}
