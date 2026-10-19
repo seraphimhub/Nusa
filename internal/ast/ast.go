@@ -442,6 +442,44 @@ func (us *UntukStatement) String() string {
 	return out.String()
 }
 
+// KasusBlok adalah satu cabang di dalam pernyataan pilih.
+type KasusBlok struct {
+	Token token.Token // token.KASUS
+	Nilai Expression
+	Body  *BlockStatement
+}
+
+func (kb *KasusBlok) String() string {
+	return "kasus " + kb.Nilai.String() + " " + kb.Body.String()
+}
+
+// PilihStatement: pilih nilai { kasus 1 { ... } bawaan { ... } }
+type PilihStatement struct {
+	Token  token.Token // token.PILIH
+	Subjek Expression
+	Kasus  []KasusBlok
+	Bawaan *BlockStatement // opsional
+}
+
+func (ps *PilihStatement) statementNode()       {}
+func (ps *PilihStatement) TokenLiteral() string { return ps.Token.Literal }
+func (ps *PilihStatement) String() string {
+	var out bytes.Buffer
+	out.WriteString("pilih ")
+	out.WriteString(ps.Subjek.String())
+	out.WriteString(" {")
+	for _, kasus := range ps.Kasus {
+		out.WriteString("\n")
+		out.WriteString(kasus.String())
+	}
+	if ps.Bawaan != nil {
+		out.WriteString("\nbawaan ")
+		out.WriteString(ps.Bawaan.String())
+	}
+	out.WriteString("\n}")
+	return out.String()
+}
+
 // UntukDalamStatement: untuk x dalam daftar { ... }
 type UntukDalamStatement struct {
 	Token    token.Token // token.UNTUK
