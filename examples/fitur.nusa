@@ -78,6 +78,16 @@ kalau_tidak {
     tulis "Nilai: D"
 }
 
+# -- Pernyataan pilih --
+tulis ""
+tulis "=== PILIH ==="
+buat pilihan = 2
+pilih pilihan {
+    kasus 1 { tulis "Pilihan satu" }
+    kasus 2 { tulis "Pilihan dua" }
+    bawaan { tulis "Pilihan lain" }
+}
+
 # -- Loop dengan ulang --
 tulis ""
 tulis "Menghitung 1-5:"
