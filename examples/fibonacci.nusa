@@ -1,22 +1,39 @@
 # Program Fibonacci
-# Menampilkan deret Fibonacci
+# Dua pendekatan: rekursif dan iteratif dengan daftar
 
-fungsi fibonacci(n) {
+# -- Pendekatan 1: rekursif --
+fungsi fib(n) {
+    jika n <= 1 {
+        kembali n
+    }
+    kembali fib(n - 1) + fib(n - 2)
+}
+
+tulis "Deret Fibonacci (rekursif):"
+untuk i dari 0 sampai 10 {
+    tulis "fib(" + i + ") = " + fib(i)
+}
+
+# -- Pendekatan 2: iteratif --
+fungsi deret(n) {
+    buat hasil = []
     buat a = 0
     buat b = 1
-    buat hasil = ""
-    
+
     ulang n {
-        hasil = hasil + a + " "
+        tambahkan(hasil, a)
         buat temp = a + b
         a = b
         b = temp
     }
-    
+
     kembali hasil
 }
 
-tulis "Deret Fibonacci 10 angka pertama:"
-tulis panggil fibonacci(10)
+buat angka = deret(10)
+tulis ""
+tulis "Daftar 10 angka pertama: " + angka
+tulis "Jumlahnya              : " + jumlah(angka)
+tulis "Dibalik                : " + balik(angka)
 tulis ""
 tulis "Selesai!"
