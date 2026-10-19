@@ -1012,7 +1012,13 @@ func (r *Runtime) readInput() string {
 		if r.In == nil {
 			r.In = strings.NewReader("")
 		}
-		r.reader = bufio.NewReader(r.In)
+		// Jangan bungkus ulang bufio.Reader agar buffer yang sudah ada
+		// (misalnya dipakai REPL) tidak tertinggal.
+		if buffered, ok := r.In.(*bufio.Reader); ok {
+			r.reader = buffered
+		} else {
+			r.reader = bufio.NewReader(r.In)
+		}
 	}
 	fmt.Fprint(r.Out, "> ")
 	line, err := r.reader.ReadString('\n')
