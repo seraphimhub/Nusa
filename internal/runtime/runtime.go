@@ -117,10 +117,46 @@ func (fo *FunctionObject) Inspect() string {
 	return fmt.Sprintf("fungsi %s(%d parameter)", fo.Name, len(fo.Params))
 }
 
-type Error struct{ Message string }
+// Frame adalah satu pemanggilan fungsi pada jejak galat.
+type Frame struct {
+	Name string
+	Line int
+}
+
+// Error membawa pesan, nomor baris, dan jejak pemanggilan fungsi sehingga
+// galat bisa dilacak sampai ke pemanggilnya.
+type Error struct {
+	Message string
+	Line    int
+	Trace   []Frame
+}
 
 func (e *Error) Type() ObjectType { return ERROR_OBJ }
-func (e *Error) Inspect() string  { return "ERROR: " + e.Message }
+
+// maxTraceFrames membatasi panjang jejak yang ditampilkan agar galat pada
+// rekursi dalam tetap terbaca.
+const maxTraceFrames = 10
+
+func (e *Error) Inspect() string {
+	var out strings.Builder
+	out.WriteString("ERROR: ")
+	if e.Line > 0 {
+		fmt.Fprintf(&out, "baris %d: ", e.Line)
+	}
+	out.WriteString(e.Message)
+
+	shown := e.Trace
+	if len(shown) > maxTraceFrames {
+		shown = shown[:maxTraceFrames]
+	}
+	for _, frame := range shown {
+		fmt.Fprintf(&out, "\n  di %s (dipanggil pada baris %d)", frame.Name, frame.Line)
+	}
+	if len(e.Trace) > maxTraceFrames {
+		fmt.Fprintf(&out, "\n  ... dan %d frame lainnya", len(e.Trace)-maxTraceFrames)
+	}
+	return out.String()
+}
 
 // --- Environment ---
 
@@ -167,12 +203,26 @@ func (e *Environment) Assign(name string, val Object) bool {
 
 // --- Runtime (Evaluator) ---
 
+// Limits membatasi sumber daya eksekusi skrip agar program yang salah tidak
+// membuat interpreter kehabisan memori atau tumpukan.
+type Limits struct {
+	MaxDepth int   // kedalaman pemanggilan fungsi, 0 berarti tanpa batas
+	MaxSteps int64 // jumlah node yang dievaluasi, 0 berarti tanpa batas
+}
+
+func DefaultLimits() Limits {
+	return Limits{MaxDepth: 1000, MaxSteps: 5_000_000}
+}
+
 type Runtime struct {
 	env      *Environment
 	Out      io.Writer
 	In       io.Reader
 	reader   *bufio.Reader
 	builtins map[string]*Builtin
+	limits   Limits
+	steps    int64
+	stack    []Frame
 }
 
 func New() *Runtime {
@@ -188,16 +238,30 @@ func NewWithIO(out io.Writer, in io.Reader) *Runtime {
 		Out:      out,
 		In:       in,
 		builtins: newBuiltins(),
+		limits:   DefaultLimits(),
 	}
+}
+
+// SetLimits mengganti batas eksekusi runtime.
+func (r *Runtime) SetLimits(limits Limits) {
+	r.limits = limits
 }
 
 // Execute menjalankan program. Nilai kembalian berupa Object: galat
 // dikembalikan sebagai *Error agar pemanggil bisa menentukan exit code.
+// Anggaran langkah direset setiap pemanggilan agar REPL tetap responsif.
 func (r *Runtime) Execute(p *ast.Program) Object {
+	r.steps = 0
+	r.stack = r.stack[:0]
 	return r.eval(p, r.env)
 }
 
 func (r *Runtime) eval(node ast.Node, env *Environment) Object {
+	r.steps++
+	if r.limits.MaxSteps > 0 && r.steps > r.limits.MaxSteps {
+		return &Error{Message: fmt.Sprintf("batas eksekusi terlampaui: lebih dari %d langkah; periksa kemungkinan perulangan tak berujung", r.limits.MaxSteps)}
+	}
+
 	if node == nil {
 		return nil
 	}
@@ -672,6 +736,25 @@ func (r *Runtime) evalIndexExpression(node *ast.IndexExpression, env *Environmen
 	}
 
 	switch obj := left.(type) {
+	case *Error:
+		key, ok := indexObj.(*String)
+		if !ok {
+			return newError(node.Token.Line, "galat hanya bisa diindeks dengan teks: \"pesan\", \"baris\", atau \"jejak\"")
+		}
+		switch key.Value {
+		case "pesan":
+			return &String{Value: obj.Message}
+		case "baris":
+			return &Integer{Value: int64(obj.Line)}
+		case "jejak":
+			frames := make([]Object, 0, len(obj.Trace))
+			for _, frame := range obj.Trace {
+				frames = append(frames, &String{Value: fmt.Sprintf("%s (baris %d)", frame.Name, frame.Line)})
+			}
+			return &List{Elements: frames}
+		default:
+			return newError(node.Token.Line, "kunci galat '%s' tidak dikenal; pakai \"pesan\", \"baris\", atau \"jejak\"", key.Value)
+		}
 	case *List:
 		index, err := resolveIndex(indexObj, len(obj.Elements))
 		if err != nil {
@@ -978,15 +1061,27 @@ func (r *Runtime) evalCallExpression(call *ast.CallExpression, env *Environment)
 
 	switch f := fn.(type) {
 	case *Builtin:
-		return f.Fn(args...)
+		result := f.Fn(args...)
+		if errObj, ok := result.(*Error); ok {
+			r.attachTrace(errObj, call.Token.Line)
+		}
+		return result
 	case *FunctionObject:
+		name := f.Name
+		if name == "" {
+			name = call.Function.String()
+		}
+
 		if len(args) != len(f.Params) {
-			name := f.Name
-			if name == "" {
-				name = call.Function.String()
-			}
 			return newError(call.Token.Line, "fungsi '%s' membutuhkan %d parameter, tapi diberikan %d",
 				name, len(f.Params), len(args))
+		}
+
+		// Batas kedalaman mencegah tumpukan Go meluap pada rekursi tak
+		// berujung, yang jika terjadi membuat proses mati total.
+		if r.limits.MaxDepth > 0 && len(r.stack) >= r.limits.MaxDepth {
+			return newError(call.Token.Line, "kedalaman pemanggilan melebihi batas %d pada fungsi '%s'; periksa rekursi tanpa kondisi berhenti",
+				r.limits.MaxDepth, name)
 		}
 
 		enclosed := NewEnclosedEnvironment(f.Env)
@@ -994,7 +1089,13 @@ func (r *Runtime) evalCallExpression(call *ast.CallExpression, env *Environment)
 			enclosed.Set(param.Value, args[i])
 		}
 
+		r.stack = append(r.stack, Frame{Name: name, Line: call.Token.Line})
 		result := r.eval(f.Body, enclosed)
+		if errObj, ok := result.(*Error); ok {
+			r.attachTrace(errObj, call.Token.Line)
+		}
+		r.stack = r.stack[:len(r.stack)-1]
+
 		if result != nil && result.Type() == RETURN_OBJ {
 			return result.(*ReturnValue).Value
 		}
@@ -1062,7 +1163,30 @@ func (r *Runtime) readInput() string {
 // --- Helpers ---
 
 func newError(line int, format string, args ...interface{}) *Error {
-	return &Error{Message: fmt.Sprintf("baris %d: %s", line, fmt.Sprintf(format, args...))}
+	return &Error{Message: fmt.Sprintf(format, args...), Line: line}
+}
+
+// snapshot menyalin jejak pemanggilan dengan urutan terdalam lebih dulu.
+func snapshot(stack []Frame) []Frame {
+	if len(stack) == 0 {
+		return nil
+	}
+	trace := make([]Frame, 0, len(stack))
+	for i := len(stack) - 1; i >= 0; i-- {
+		trace = append(trace, stack[i])
+	}
+	return trace
+}
+
+// attachTrace melengkapi galat dengan nomor baris dan jejak pemanggilan bila
+// belum diisi oleh pembuat galat asli.
+func (r *Runtime) attachTrace(err *Error, line int) {
+	if err.Line == 0 {
+		err.Line = line
+	}
+	if len(err.Trace) == 0 {
+		err.Trace = snapshot(r.stack)
+	}
 }
 
 func typeName(obj Object) string {

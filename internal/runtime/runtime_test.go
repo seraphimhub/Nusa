@@ -31,6 +31,88 @@ func executeWithInput(t *testing.T, source string, input string) (string, runtim
 	return out.String(), result
 }
 
+func executeWithLimits(t *testing.T, source string, limits runtime.Limits) (string, runtime.Object) {
+	t.Helper()
+
+	tokens := lexer.Tokenize(source)
+	p := parser.New(tokens)
+	program := p.ParseProgram()
+	if len(p.Errors()) > 0 {
+		t.Fatalf("galat parser: %v\nsource:\n%s", p.Errors(), source)
+	}
+
+	var out bytes.Buffer
+	rt := runtime.NewWithIO(&out, strings.NewReader(""))
+	rt.SetLimits(limits)
+	result := rt.Execute(program)
+	return out.String(), result
+}
+
+func TestBatasKedalamanRekursi(t *testing.T) {
+	_, result := executeWithLimits(t, `
+fungsi turun(n) {
+    kembali turun(n + 1)
+}
+tulis turun(0)
+`, runtime.Limits{MaxDepth: 50, MaxSteps: 100000})
+
+	if result == nil || result.Type() != runtime.ERROR_OBJ {
+		t.Fatalf("ingin galat runtime, dapat %#v", result)
+	}
+	msg := result.Inspect()
+	if !strings.Contains(msg, "kedalaman pemanggilan melebihi batas 50") {
+		t.Errorf("pesan = %q", msg)
+	}
+	if !strings.Contains(msg, "di turun (dipanggil pada baris 3)") {
+		t.Errorf("jejak pemanggilan hilang: %q", msg)
+	}
+	if n := strings.Count(msg, "di turun"); n > 10 {
+		t.Errorf("jejak tidak dipotong: %d frame", n)
+	}
+}
+
+func TestBatasLangkahEksekusi(t *testing.T) {
+	_, result := executeWithLimits(t, `
+buat i = 0
+selama benar {
+    i += 1
+}
+`, runtime.Limits{MaxDepth: 100, MaxSteps: 5000})
+
+	if result == nil || result.Type() != runtime.ERROR_OBJ {
+		t.Fatalf("ingin galat runtime, dapat %#v", result)
+	}
+	if !strings.Contains(result.Inspect(), "batas eksekusi terlampaui") {
+		t.Errorf("pesan = %q", result.Inspect())
+	}
+}
+
+func TestJejakPemanggilanBerlapis(t *testing.T) {
+	_, result := executeWithLimits(t, `
+fungsi bagi() {
+    kembali 1 / 0
+}
+fungsi panggilBagi() {
+    kembali bagi()
+}
+tulis panggilBagi()
+`, runtime.DefaultLimits())
+
+	if result == nil || result.Type() != runtime.ERROR_OBJ {
+		t.Fatalf("ingin galat runtime, dapat %#v", result)
+	}
+	msg := result.Inspect()
+	for _, want := range []string{
+		"pembagian dengan nol",
+		"di bagi (dipanggil pada baris 6)",
+		"di panggilBagi (dipanggil pada baris 8)",
+	} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("jejak %q tidak ditemukan pada:\n%s", want, msg)
+		}
+	}
+}
+
 func mustRun(t *testing.T, source string) string {
 	t.Helper()
 	out, result := execute(t, source)
