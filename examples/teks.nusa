@@ -1,0 +1,27 @@
+# Nusa - Pengolahan Teks
+# ======================
+
+buat kalimat = "Nusa adalah bahasa pemrograman Indonesia"
+
+tulis "Kalimat    : " + kalimat
+tulis "Panjang    : " + panjang(kalimat)
+tulis "Huruf besar: " + huruf_besar(kalimat)
+tulis "Huruf kecil: " + huruf_kecil(kalimat)
+
+tulis ""
+tulis "Potong 5 huruf pertama : " + potong(kalimat, 0, 5)
+tulis "Potong dari kata ke-3  : " + potong(kalimat, 12)
+tulis "Cari 'bahasa'          : " + cari(kalimat, "bahasa")
+tulis "Cari 'python'          : " + cari(kalimat, "python")
+
+# Pisah dan gabung
+buat kata = pisah(kalimat, " ")
+tulis ""
+tulis "Jumlah kata     : " + panjang(kata)
+tulis "Kata terakhir   : " + kata[-1]
+tulis "Digabung pakai _: " + gabung(kata, "_")
+
+tulis ""
+tulis "Teks besar       : " + huruf_besar("nusa")
+tulis "Escape \"kutip\"  : \\ tetap aman"
+tulis "Kutip tunggal    : " + 'bisa juga'
