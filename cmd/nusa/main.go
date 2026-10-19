@@ -335,6 +335,7 @@ FITUR BAHASA:
   selama      - While loop              (selama x < 10 { ... })
   untuk       - For range               (untuk i dari 1 sampai 5 { ... })
   untuk ... dalam - Iterasi daftar      (untuk x dalam daftar { ... })
+  pilih       - Pencocokan nilai        (pilih x { kasus 1 { ... } bawaan { ... } })
   fungsi      - Definisi fungsi         (fungsi nama(a, b) { ... })
   panggil     - Panggil fungsi          (panggil nama(1, 2) atau nama(1, 2))
   kembali     - Return value            (kembali x)
