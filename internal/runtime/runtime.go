@@ -244,6 +244,9 @@ func (r *Runtime) eval(node ast.Node, env *Environment) Object {
 	case *ast.UntukDalamStatement:
 		return r.evalUntukDalamStatement(n, env)
 
+	case *ast.PilihStatement:
+		return r.evalPilihStatement(n, env)
+
 	case *ast.WhileStatement:
 		return r.evalWhileStatement(n, env)
 
@@ -510,6 +513,34 @@ func (r *Runtime) evalUntukDalamStatement(ud *ast.UntukDalamStatement, env *Envi
 		}
 	default:
 		return newError(ud.Token.Line, "untuk ... dalam hanya bisa mengulang daftar atau teks, mendapat %s", typeName(iterable))
+	}
+
+	return nil
+}
+
+// --- Pilih Statement ---
+
+// evalPilihStatement mencocokkan subjek dengan setiap kasus memakai
+// kesetaraan nilai. Cabang pertama yang cocok langsung dijalankan tanpa
+// fallthrough; bawaan dipakai bila tidak ada kasus yang cocok.
+func (r *Runtime) evalPilihStatement(ps *ast.PilihStatement, env *Environment) Object {
+	subjek := r.eval(ps.Subjek, env)
+	if isError(subjek) {
+		return subjek
+	}
+
+	for _, kasus := range ps.Kasus {
+		nilai := r.eval(kasus.Nilai, env)
+		if isError(nilai) {
+			return nilai
+		}
+		if objectsEqual(subjek, nilai) {
+			return r.eval(kasus.Body, env)
+		}
+	}
+
+	if ps.Bawaan != nil {
+		return r.eval(ps.Bawaan, env)
 	}
 
 	return nil
