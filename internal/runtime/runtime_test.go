@@ -230,6 +230,52 @@ benar
 3`)
 }
 
+func TestPilihStatement(t *testing.T) {
+	expectOutput(t, `
+pilih 3 {
+    kasus 1 { tulis "satu" }
+    kasus 3 { tulis "tiga" }
+    bawaan { tulis "lain" }
+}
+
+# tanpa kecocokan dan tanpa bawaan: tidak ada yang dijalankan
+pilih "b" { kasus "a" { tulis "A" } }
+
+pilih "b" {
+    kasus "a" { tulis "A" }
+    bawaan { tulis "B" }
+}
+
+pilih [1, 2] {
+    kasus [1, 2] { tulis "daftar" }
+}
+
+buat hasil = ""
+untuk i dari 1 sampai 4 {
+    pilih i % 2 {
+        kasus 0 { hasil += "g" }
+        kasus 1 { hasil += "j" }
+    }
+}
+tulis hasil
+`, "tiga\nB\ndaftar\njgjg")
+}
+
+func TestPilihWithReturn(t *testing.T) {
+	expectOutput(t, `
+fungsi namaHari(n) {
+    pilih n {
+        kasus 1 { kembali "Senin" }
+        kasus 2 { kembali "Selasa" }
+        bawaan { kembali "Tidak dikenal" }
+    }
+}
+tulis namaHari(1)
+tulis namaHari(2)
+tulis namaHari(9)
+`, "Senin\nSelasa\nTidak dikenal")
+}
+
 func TestNestedFunctionCalls(t *testing.T) {
 	// Regresi: pemanggilan bersarang sempat salah memakai ')' milik
 	// call dalam sebagai penutup call luar.
