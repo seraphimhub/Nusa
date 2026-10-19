@@ -230,6 +230,18 @@ benar
 3`)
 }
 
+func TestNestedFunctionCalls(t *testing.T) {
+	// Regresi: pemanggilan bersarang sempat salah memakai ')' milik
+	// call dalam sebagai penutup call luar.
+	expectOutput(t, `
+fungsi tambah(a, b) { kembali a + b }
+buat hasil = tambah(tambah(1, 2), tambah(3, 4))
+tulis hasil
+tulis jumlah(rentang(1, 101))
+tulis panjang(gabung(["a", "b", "c"], "-"))
+`, "10\n5050\n5")
+}
+
 func TestListMutation(t *testing.T) {
 	expectOutput(t, `
 buat angka = [1, 2]
