@@ -63,6 +63,29 @@ x += 3
 	}
 }
 
+func TestParseTetap(t *testing.T) {
+	program := mustParse(t, `
+tetap PI = 3.14
+buat x = 1
+`)
+
+	tetap, ok := program.Statements[0].(*ast.LetStatement)
+	if !ok {
+		t.Fatalf("statement 0 bukan LetStatement: %T", program.Statements[0])
+	}
+	if !tetap.Konst {
+		t.Error("Konst = false, ingin true")
+	}
+	if tetap.TokenLiteral() != "tetap" {
+		t.Errorf("TokenLiteral = %q, ingin tetap", tetap.TokenLiteral())
+	}
+
+	buat := program.Statements[1].(*ast.LetStatement)
+	if buat.Konst {
+		t.Error("deklarasi 'buat' tidak boleh bertanda konstanta")
+	}
+}
+
 func TestParseListAndIndexAssignment(t *testing.T) {
 	program := mustParse(t, `
 buat buah = ["apel", "jeruk", 3]

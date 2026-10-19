@@ -50,9 +50,10 @@ func (p *Program) String() string {
 // --- Statements ---
 
 type LetStatement struct {
-	Token token.Token // token.BUAT
+	Token token.Token // token.BUAT atau token.TETAP
 	Name  *Identifier
 	Value Expression
+	Konst bool // true bila dideklarasikan dengan 'tetap'
 }
 
 func (ls *LetStatement) statementNode()       {}

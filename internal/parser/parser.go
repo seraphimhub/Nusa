@@ -196,6 +196,7 @@ func (p *Parser) curPrecedence() Precedence {
 func (p *Parser) skipToNextStatement() {
 	for p.curToken.Type != token.EOF {
 		if p.curToken.Type == token.BUAT ||
+			p.curToken.Type == token.TETAP ||
 			p.curToken.Type == token.TULIS ||
 			p.curToken.Type == token.JIKA ||
 			p.curToken.Type == token.ULANG ||
@@ -238,7 +239,7 @@ func (p *Parser) ParseProgram() *ast.Program {
 
 func (p *Parser) parseStatement() ast.Statement {
 	switch p.curToken.Type {
-	case token.BUAT:
+	case token.BUAT, token.TETAP:
 		return p.parseLetStatement()
 	case token.TULIS:
 		return p.parsePrintStatement()
@@ -274,11 +275,12 @@ func (p *Parser) parseStatement() ast.Statement {
 // --- Let Statement ---
 
 func (p *Parser) parseLetStatement() *ast.LetStatement {
-	stmt := &ast.LetStatement{Token: p.curToken}
+	keyword := p.curToken
+	stmt := &ast.LetStatement{Token: keyword, Konst: keyword.Type == token.TETAP}
 
 	p.nextToken()
 	if p.curToken.Type != token.IDENT {
-		msg := fmt.Sprintf("baris %d: mengharapkan identifier setelah 'buat'", p.curToken.Line)
+		msg := fmt.Sprintf("baris %d: mengharapkan identifier setelah '%s'", p.curToken.Line, keyword.Literal)
 		p.errors = append(p.errors, msg)
 		p.skipToNextStatement()
 		return nil
@@ -961,7 +963,7 @@ func isAssignOperator(t token.TokenType) bool {
 }
 
 func isStatementStart(t token.TokenType) bool {
-	return t == token.BUAT || t == token.TULIS || t == token.JIKA ||
+	return t == token.BUAT || t == token.TETAP || t == token.TULIS || t == token.JIKA ||
 		t == token.ULANG || t == token.SELAMA || t == token.UNTUK ||
 		t == token.PILIH || t == token.KASUS || t == token.BAWAAN || t == token.FUNGSI ||
 		t == token.PANGGIL || t == token.KEMBALI || t == token.BERHENTI ||

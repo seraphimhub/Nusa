@@ -161,13 +161,14 @@ func (e *Error) Inspect() string {
 // --- Environment ---
 
 type Environment struct {
-	store map[string]Object
-	outer *Environment
+	store  map[string]Object
+	consts map[string]bool
+	outer  *Environment
 }
 
 func NewEnvironment() *Environment {
 	s := make(map[string]Object)
-	return &Environment{store: s, outer: nil}
+	return &Environment{store: s, consts: make(map[string]bool), outer: nil}
 }
 
 func NewEnclosedEnvironment(outer *Environment) *Environment {
@@ -187,6 +188,30 @@ func (e *Environment) Get(name string) (Object, bool) {
 func (e *Environment) Set(name string, val Object) Object {
 	e.store[name] = val
 	return val
+}
+
+// SetConst mendeklarasikan konstanta pada scope ini.
+func (e *Environment) SetConst(name string, val Object) Object {
+	e.store[name] = val
+	e.consts[name] = true
+	return val
+}
+
+// IsConstLocal melaporkan apakah nama dideklarasikan sebagai konstanta pada
+// scope ini saja, sehingga deklarasi ulang bisa dicegah.
+func (e *Environment) IsConstLocal(name string) bool {
+	return e.consts[name]
+}
+
+// FindConst mencari konstanta pada scope ini maupun scope luar.
+func (e *Environment) FindConst(name string) bool {
+	if e.consts[name] {
+		return true
+	}
+	if e.outer != nil {
+		return e.outer.FindConst(name)
+	}
+	return false
 }
 
 // Assign memperbarui variabel di scope tempat ia dideklarasikan.
@@ -277,6 +302,10 @@ func (r *Runtime) eval(node ast.Node, env *Environment) Object {
 		return r.evalBlockStatement(n, env)
 
 	case *ast.LetStatement:
+		if env.IsConstLocal(n.Name.Value) {
+			return newError(n.Token.Line, "'%s' adalah konstanta dan tidak bisa dideklarasikan ulang", n.Name.Value)
+		}
+
 		val := r.eval(n.Value, env)
 		if isError(val) {
 			return val
@@ -284,7 +313,12 @@ func (r *Runtime) eval(node ast.Node, env *Environment) Object {
 		if val == nil {
 			return newError(n.Token.Line, "ekspresi tidak menghasilkan nilai")
 		}
-		env.Set(n.Name.Value, val)
+
+		if n.Konst {
+			env.SetConst(n.Name.Value, val)
+		} else {
+			env.Set(n.Name.Value, val)
+		}
 
 	case *ast.PrintStatement:
 		val := r.eval(n.Value, env)
@@ -662,6 +696,12 @@ func (r *Runtime) evalIdentifier(node *ast.Identifier, env *Environment) Object 
 // --- Assignment ---
 
 func (r *Runtime) evalAssign(ae *ast.AssignExpression, env *Environment) Object {
+	if ident, ok := ae.Target.(*ast.Identifier); ok {
+		if env.FindConst(ident.Value) {
+			return newError(ae.Token.Line, "'%s' adalah konstanta dan tidak bisa diubah", ident.Value)
+		}
+	}
+
 	var current Object
 	var list *List
 	index := -1

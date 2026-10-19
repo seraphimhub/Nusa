@@ -48,6 +48,51 @@ func executeWithLimits(t *testing.T, source string, limits runtime.Limits) (stri
 	return out.String(), result
 }
 
+func TestKonstantaTetap(t *testing.T) {
+	expectOutput(t, `
+tetap PI = 3.14
+buat jariJari = 2
+tulis PI * jariJari
+`, "6.28")
+}
+
+func TestKonstantaTidakBisaDiubah(t *testing.T) {
+	tests := []struct {
+		name   string
+		source string
+	}{
+		{"penugasan biasa", "tetap PI = 3\nPI = 4\ntulis PI\n"},
+		{"penugasan gabungan", "tetap PI = 3\nPI += 1\n"},
+		{"deklarasi ulang", "tetap PI = 3\nbuat PI = 4\n"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, result := execute(t, test.source)
+			if result == nil || result.Type() != runtime.ERROR_OBJ {
+				t.Fatalf("ingin galat runtime, dapat %#v", result)
+			}
+			if !strings.Contains(result.Inspect(), "konstanta") {
+				t.Errorf("galat = %q, ingin menyebut konstanta", result.Inspect())
+			}
+		})
+	}
+}
+
+func TestKonstantaBolehDibayangiDiScopeLokal(t *testing.T) {
+	expectOutput(t, `
+tetap PI = 3
+
+fungsi hitung() {
+    buat PI = 4
+    kembali PI
+}
+
+tulis hitung()
+tulis PI
+`, "4\n3")
+}
+
 func TestBatasKedalamanRekursi(t *testing.T) {
 	_, result := executeWithLimits(t, `
 fungsi turun(n) {
