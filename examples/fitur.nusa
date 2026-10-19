@@ -12,6 +12,7 @@ tulis "=== NUSA PROGRAMMING LANGUAGE ==="
 tulis "Nama: " + nama
 tulis "Umur: " + umur
 tulis "Tinggi: " + tinggi
+tulis "Tipe umur: " + tipe(umur)
 
 # -- Aritmatika --
 buat a = 10
@@ -20,6 +21,15 @@ tulis "10 + 3 = " + (a + b)
 tulis "10 - 3 = " + (a - b)
 tulis "10 * 3 = " + (a * b)
 tulis "10 / 3 = " + (a / b)
+tulis "10 % 3 = " + (a % b)
+tulis "2 ^ 10 = " + pangkat(2, 10)
+
+# -- Penugasan Gabungan --
+buat skor = 100
+skor += 50
+skor -= 25
+skor *= 2
+tulis "Skor akhir: " + skor
 
 # -- Perbandingan --
 jika a > b {
@@ -27,6 +37,10 @@ jika a > b {
 }
 kalau_tidak {
     tulis "a tidak lebih besar dari b"
+}
+
+jika a == 10 dan b == 3 {
+    tulis "a dan b sesuai dugaan"
 }
 
 # -- Boolean Expression --
@@ -68,7 +82,20 @@ kalau_tidak {
 tulis ""
 tulis "Menghitung 1-5:"
 ulang 5 {
-    tulis "Iterasi ke-" + (1 + 1)
+    tulis "Halo dari ulang"
+}
+
+# -- Loop dengan untuk --
+tulis ""
+tulis "Iterasi dengan nomor:"
+untuk i dari 1 sampai 5 {
+    tulis "Iterasi ke-" + i
+}
+
+tulis ""
+tulis "Hitung mundur langkah 2:"
+untuk i dari 10 sampai 2 langkah -2 {
+    tulis "Mundur ke-" + i
 }
 
 # -- Loop dengan selama --
@@ -77,8 +104,23 @@ tulis "While loop:"
 buat counter = 0
 selama counter < 3 {
     tulis "Counter: " + counter
-    counter = counter + 1
+    counter += 1
 }
+
+# -- Daftar --
+tulis ""
+tulis "=== DAFTAR ==="
+buat buah = ["apel", "jeruk", "mangga"]
+tulis "Buah: " + buah
+tulis "Jumlah: " + panjang(buah)
+buah[1] = "pisang"
+tulis "Setelah diubah: " + buah
+
+untuk b dalam buah {
+    tulis "- " + b
+}
+
+tulis "Diurutkan: " + urutkan([3, 1, 2])
 
 # -- Fungsi --
 tulis ""
@@ -97,21 +139,25 @@ fungsi isGenap(n) {
 }
 
 panggil sapa("Nusa")
-panggil sapa("Dunia")
+sapa("Dunia")
 
-buat hasil = panggil tambah(10, 20)
+buat hasil = tambah(10, 20)
 tulis "10 + 20 = " + hasil
+tulis "tambah(1, tambah(2, 3)) = " + tambah(1, tambah(2, 3))
 
-jika panggil isGenap(8) {
+jika isGenap(8) {
     tulis "8 adalah bilangan genap"
 }
 
 # -- String Concatenation --
 tulis ""
 tulis "Halo, nama saya " + nama + " dan umur saya " + umur + " tahun."
+tulis "Nama besar: " + huruf_besar(nama)
 
 # -- Komentar --
 tulis ""
 tulis "Program selesai!"
 # ini komentar
 // ini juga komentar
+/* ini komentar blok
+   yang bisa lebih dari satu baris */
