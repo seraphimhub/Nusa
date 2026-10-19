@@ -25,6 +25,9 @@ const (
 	SAMPAI      TokenType = "SAMPAI"
 	LANGKAH     TokenType = "LANGKAH"
 	DALAM       TokenType = "DALAM"
+	PILIH       TokenType = "PILIH"
+	KASUS       TokenType = "KASUS"
+	BAWAAN      TokenType = "BAWAAN"
 	FUNGSI      TokenType = "FUNGSI"
 	PANGGIL     TokenType = "PANGGIL"
 	KEMBALI     TokenType = "KEMBALI"
@@ -87,6 +90,9 @@ var Keywords = map[string]TokenType{
 	"sampai":      SAMPAI,
 	"langkah":     LANGKAH,
 	"dalam":       DALAM,
+	"pilih":       PILIH,
+	"kasus":       KASUS,
+	"bawaan":      BAWAAN,
 	"fungsi":      FUNGSI,
 	"panggil":     PANGGIL,
 	"kembali":     KEMBALI,
