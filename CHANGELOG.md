@@ -6,6 +6,55 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/) dan
 annotated tag `vX.Y.Z` serta GitHub Release. Prosedur rilis ada di
 [docs/rilis.md](docs/rilis.md).
 
+## [1.2.0] - 2026-10-20
+
+Rilis ini menambah tipe peta, sistem modul, pengetikan opsional, penanganan
+galat, dan perkakas pengembangan (pemeriksa statis, pemformat, penjalur uji).
+
+### Ditambahkan
+
+- Tipe `peta` dengan literal `peta { "kunci": nilai }`, indeks, penugasan, dan
+  iterasi satu variabel (kunci) maupun dua variabel (kunci dan nilai).
+- Fungsi bawaan peta: `ada`, `kunci`, `nilai`, dan `ambil`. `panjang` kini
+  menerima peta, dan `hapus` dapat menghapus kunci pada peta.
+- Pernyataan `impor "modul.nusa"` untuk memuat modul dari berkas lain. Path
+  diselesaikan relatif terhadap direktori berkas pemanggil, modul yang sama
+  hanya dieksekusi satu kali, dan impor melingkar ditolak.
+- Anotasi tipe opsional pada variabel (`buat x: angka = 1`), parameter
+  (`fungsi f(x: angka)`), dan nilai kembalian (`fungsi f(x): angka`). Tipe
+  yang dikenal: `angka`, `desimal`, `teks`, `logika`, `kosong`, `daftar`,
+  `peta`, `fungsi`, dan `apa_saja`.
+- Pernyataan `coba`/`tangkap` untuk menangani galat, beserta `lempar` untuk
+  membuat galat sendiri. Nilai galat tertangkap adalah peta dengan kunci
+  `pesan`, `baris`, `tipe`, dan `jejak`.
+- Fungsi bawaan `pesan` dan `jejak` untuk membaca detail galat, serta
+  `kudiag` untuk melihat status runtime.
+- Blok `uji` berisi pemeriksaan `cek` untuk menulis pengujian di dalam berkas
+  sumber, beserta perintah CLI `nusa uji` sebagai penjalur uji.
+- Perintah CLI `nusa cek` sebagai pemeriksa statis: pemeriksaan tipe,
+  variabel tak terdefinisi, dan variabel tak terpakai.
+- Perintah CLI `nusa fmt` sebagai pemformat kode berbasis token yang menjaga
+  komentar baris maupun blok.
+- Paket `internal/tipe` sebagai satu sumber kebenaran nama tipe, dipakai
+  parser, runtime, dan pemeriksa statis.
+- Galat runtime kini menampilkan cuplikan sumber di sekitar baris penyebab
+  beserta penanda kolom.
+- Fuzz test untuk lexer, parser, dan runtime beserta seed awal.
+- Contoh baru: `peta.nusa`, `tipe.nusa`, `galat.nusa`, `galat_tipe.nusa`,
+  `matematika_uji.nusa`, dan direktori `modul/`.
+
+### Diubah
+
+- CLI kini membuat runtime dengan pemuat modul sehingga `impor` bekerja pada
+  `run` maupun REPL.
+- Pesan galat leksikal dan parsing juga disertai cuplikan sumber.
+- Nomor versi pada CLI menjadi `1.2.0`.
+
+### Diperbaiki
+
+- Galat indeks pada peta kini menunjuk kunci yang hilang dan menyarankan
+  `ada` atau `ambil` sebagai alternatif.
+
 ## [1.1.0] - 2026-10-19
 
 Rilis ini memperluas bahasa dengan daftar, loop rentang, penugasan gabungan,
@@ -85,6 +134,7 @@ rilis memakai annotated tag dan GitHub Release.
 | [v0.7.1][v071] | Operator perbandingan lengkap (`==`, `!=`, `>=`, `<=`) |
 | [v0.7.2][v072] | Cabang `kalau_tidak` untuk pernyataan `jika` |
 
+[1.2.0]: https://github.com/seraphimhub/Nusa/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/seraphimhub/Nusa/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/seraphimhub/Nusa/releases/tag/v1.0.0
 [v030]: https://github.com/seraphimhub/Nusa/releases/tag/v0.3.0
