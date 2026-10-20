@@ -3,8 +3,10 @@ package parser
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/seraphimhub/Nusa/internal/ast"
+	"github.com/seraphimhub/Nusa/internal/tipe"
 	"github.com/seraphimhub/Nusa/internal/token"
 )
 
@@ -53,6 +55,9 @@ type Parser struct {
 	curToken  token.Token
 	peekToken token.Token
 	errors    []string
+	// pulih menandai bahwa kursor sudah diposisikan ulang oleh
+	// skipToNextStatement sehingga caller tidak boleh menggesernya lagi.
+	pulih bool
 
 	prefixParseFns map[token.TokenType]prefixParseFn
 	infixParseFns  map[token.TokenType]infixParseFn
@@ -195,6 +200,7 @@ func (p *Parser) curPrecedence() Precedence {
 
 // skipToNextStatement consumes tokens until we find a statement boundary
 func (p *Parser) skipToNextStatement() {
+	p.pulih = true
 	for p.curToken.Type != token.EOF {
 		if p.curToken.Type == token.BUAT ||
 			p.curToken.Type == token.TETAP ||
@@ -206,6 +212,11 @@ func (p *Parser) skipToNextStatement() {
 			p.curToken.Type == token.PILIH ||
 			p.curToken.Type == token.KASUS ||
 			p.curToken.Type == token.BAWAAN ||
+			p.curToken.Type == token.COBA ||
+			p.curToken.Type == token.LEMPAR ||
+			p.curToken.Type == token.IMPOR ||
+			p.curToken.Type == token.UJI ||
+			p.curToken.Type == token.CEK ||
 			p.curToken.Type == token.FUNGSI ||
 			p.curToken.Type == token.PANGGIL ||
 			p.curToken.Type == token.KEMBALI ||
@@ -228,49 +239,107 @@ func (p *Parser) ParseProgram() *ast.Program {
 	program.Statements = []ast.Statement{}
 
 	for p.curToken.Type != token.EOF {
+		p.pulih = false
 		stmt := p.parseStatement()
 		if stmt != nil {
 			program.Statements = append(program.Statements, stmt)
 		}
-		p.nextToken()
+		// Pemulihan galat sudah memposisikan kursor pada awal pernyataan
+		// berikutnya, sehingga kursor tidak boleh digeser lagi.
+		if !p.pulih {
+			p.nextToken()
+		}
 	}
 
 	return program
 }
 
+// parseStatement mengembalikan nil bila pernyataan gagal di-parse. Setiap
+// hasil bertipe konkret harus diperiksa sebelum dikembalikan sebagai interface
+// agar tidak terbentuk interface berisi pointer nil (typed nil) yang lolos
+// pemeriksaan `stmt != nil` dan memicu panic saat AST dicetak.
 func (p *Parser) parseStatement() ast.Statement {
 	switch p.curToken.Type {
 	case token.BUAT, token.TETAP:
-		return p.parseLetStatement()
+		if stmt := p.parseLetStatement(); stmt != nil {
+			return stmt
+		}
 	case token.TULIS:
-		return p.parsePrintStatement()
+		if stmt := p.parsePrintStatement(); stmt != nil {
+			return stmt
+		}
 	case token.JIKA:
-		return p.parseIfStatement()
+		if stmt := p.parseIfStatement(); stmt != nil {
+			return stmt
+		}
 	case token.ULANG:
-		return p.parseForStatement()
+		if stmt := p.parseForStatement(); stmt != nil {
+			return stmt
+		}
 	case token.SELAMA:
-		return p.parseWhileStatement()
+		if stmt := p.parseWhileStatement(); stmt != nil {
+			return stmt
+		}
 	case token.UNTUK:
-		return p.parseUntukStatement()
+		if stmt := p.parseUntukStatement(); stmt != nil {
+			return stmt
+		}
 	case token.PILIH:
-		return p.parsePilihStatement()
+		if stmt := p.parsePilihStatement(); stmt != nil {
+			return stmt
+		}
+	case token.COBA:
+		if stmt := p.parseCobaStatement(); stmt != nil {
+			return stmt
+		}
+	case token.LEMPAR:
+		if stmt := p.parseLemparkanStatement(); stmt != nil {
+			return stmt
+		}
 	case token.FUNGSI:
-		return p.parseFunctionStatement()
+		if stmt := p.parseFunctionStatement(); stmt != nil {
+			return stmt
+		}
 	case token.PANGGIL:
-		return p.parseCallStatement()
+		if stmt := p.parseCallStatement(); stmt != nil {
+			return stmt
+		}
 	case token.KEMBALI:
-		return p.parseReturnStatement()
+		if stmt := p.parseReturnStatement(); stmt != nil {
+			return stmt
+		}
 	case token.BERHENTI:
-		return p.parseBreakStatement()
+		if stmt := p.parseBreakStatement(); stmt != nil {
+			return stmt
+		}
 	case token.LANJUTKAN:
-		return p.parseContinueStatement()
+		if stmt := p.parseContinueStatement(); stmt != nil {
+			return stmt
+		}
 	case token.MEMBACA:
-		return p.parseInputStatement()
+		if stmt := p.parseInputStatement(); stmt != nil {
+			return stmt
+		}
+	case token.IMPOR:
+		if stmt := p.parseImporStatement(); stmt != nil {
+			return stmt
+		}
+	case token.UJI:
+		if stmt := p.parseUjiStatement(); stmt != nil {
+			return stmt
+		}
+	case token.CEK:
+		if stmt := p.parseCekStatement(); stmt != nil {
+			return stmt
+		}
 	case token.RBRACE:
 		return nil
 	default:
-		return p.parseExpressionStatement()
+		if stmt := p.parseExpressionStatement(); stmt != nil {
+			return stmt
+		}
 	}
+	return nil
 }
 
 // --- Let Statement ---
@@ -289,7 +358,19 @@ func (p *Parser) parseLetStatement() *ast.LetStatement {
 
 	stmt.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
-	p.nextToken()
+	// Anotasi tipe opsional: buat nama: tipe = nilai
+	if p.peekTokenIs(token.TITIK_DUA) {
+		p.nextToken() // ke ':'
+		typeHint, ok := p.parseTypeHint()
+		if !ok {
+			return nil
+		}
+		stmt.TypeHint = typeHint
+		p.nextToken() // ke '='
+	} else {
+		p.nextToken() // ke '='
+	}
+
 	if p.curToken.Type != token.ASSIGN {
 		msg := fmt.Sprintf("baris %d: mengharapkan '=' setelah identifier, mendapat '%s'",
 			p.curToken.Line, p.curToken.Literal)
@@ -302,6 +383,34 @@ func (p *Parser) parseLetStatement() *ast.LetStatement {
 	stmt.Value = p.parseExpression(LOWEST)
 
 	return stmt
+}
+
+// parseTypeHint membaca nama tipe. Token kursor harus berada di tanda ':'
+// sebelum fungsi ini dipanggil, dan setelah selesai kursor berada di nama
+// tipe. Sebagian nama tipe ('peta', 'kosong', 'fungsi') sekaligus merupakan
+// kata kunci bahasa, sehingga tokennya perlu diterima secara khusus.
+func (p *Parser) parseTypeHint() (string, bool) {
+	p.nextToken() // ke nama tipe
+
+	switch p.curToken.Type {
+	case token.IDENT, token.FUNGSI, token.PETA, token.KOSONG:
+	default:
+		msg := fmt.Sprintf("baris %d: ekspresi tipe tidak dikenal: %q", p.curToken.Line, p.curToken.Literal)
+		p.errors = append(p.errors, msg)
+		p.skipToNextStatement()
+		return "", false
+	}
+
+	name := p.curToken.Literal
+	if !tipe.Dikenal(name) {
+		msg := fmt.Sprintf("baris %d: tipe '%s' tidak dikenal; tipe yang tersedia: %s",
+			p.curToken.Line, name, strings.Join(tipe.Semua(), ", "))
+		p.errors = append(p.errors, msg)
+		p.skipToNextStatement()
+		return "", false
+	}
+
+	return name, true
 }
 
 // --- Print Statement ---
@@ -330,12 +439,7 @@ func (p *Parser) parseIfStatement() *ast.IfStatement {
 		stmt.Consequence = p.parseBlockStatement()
 	} else {
 		// Single statement
-		stmt.Consequence = &ast.BlockStatement{
-			Token: p.curToken,
-			Statements: []ast.Statement{
-				p.parseStatement(),
-			},
-		}
+		stmt.Consequence = p.singleStatementBlock()
 	}
 
 	// Look for KALAU_TIDAK (else) or KALAU_TIDAK JIKA (else if)
@@ -356,12 +460,7 @@ func (p *Parser) parseIfStatement() *ast.IfStatement {
 			stmt.Alternative = p.parseBlockStatement()
 		} else {
 			// Single statement
-			stmt.Alternative = &ast.BlockStatement{
-				Token: p.curToken,
-				Statements: []ast.Statement{
-					p.parseStatement(),
-				},
-			}
+			stmt.Alternative = p.singleStatementBlock()
 		}
 	}
 
@@ -376,11 +475,14 @@ func (p *Parser) parseBlockStatement() *ast.BlockStatement {
 
 	p.nextToken()
 	for p.curToken.Type != token.RBRACE && p.curToken.Type != token.EOF {
+		p.pulih = false
 		stmt := p.parseStatement()
 		if stmt != nil {
 			block.Statements = append(block.Statements, stmt)
 		}
-		p.nextToken()
+		if !p.pulih {
+			p.nextToken()
+		}
 	}
 
 	return block
@@ -398,12 +500,7 @@ func (p *Parser) parseForStatement() *ast.ForStatement {
 	if p.curToken.Type == token.LBRACE {
 		stmt.Body = p.parseBlockStatement()
 	} else {
-		stmt.Body = &ast.BlockStatement{
-			Token: p.curToken,
-			Statements: []ast.Statement{
-				p.parseStatement(),
-			},
-		}
+		stmt.Body = p.singleStatementBlock()
 	}
 
 	return stmt
@@ -421,12 +518,7 @@ func (p *Parser) parseWhileStatement() *ast.WhileStatement {
 	if p.curToken.Type == token.LBRACE {
 		stmt.Body = p.parseBlockStatement()
 	} else {
-		stmt.Body = &ast.BlockStatement{
-			Token: p.curToken,
-			Statements: []ast.Statement{
-				p.parseStatement(),
-			},
-		}
+		stmt.Body = p.singleStatementBlock()
 	}
 
 	return stmt
@@ -451,22 +543,28 @@ func (p *Parser) parseFunctionStatement() *ast.FunctionStatement {
 	stmt.Params = p.parseFunctionParams()
 
 	p.nextToken()
+
+	// Tipe kembalian opsional: ): tipe {
+	if p.curToken.Type == token.TITIK_DUA {
+		returnType, ok := p.parseTypeHint()
+		if !ok {
+			return nil
+		}
+		stmt.ReturnType = returnType
+		p.nextToken() // ke '{'
+	}
+
 	if p.curToken.Type == token.LBRACE {
 		stmt.Body = p.parseBlockStatement()
 	} else {
-		stmt.Body = &ast.BlockStatement{
-			Token: p.curToken,
-			Statements: []ast.Statement{
-				p.parseStatement(),
-			},
-		}
+		stmt.Body = p.singleStatementBlock()
 	}
 
 	return stmt
 }
 
-func (p *Parser) parseFunctionParams() []*ast.Identifier {
-	var params []*ast.Identifier
+func (p *Parser) parseFunctionParams() []*ast.Param {
+	var params []*ast.Param
 
 	if p.curToken.Type != token.LPAREN {
 		return params
@@ -479,7 +577,7 @@ func (p *Parser) parseFunctionParams() []*ast.Identifier {
 
 	// First parameter
 	if p.curToken.Type == token.IDENT {
-		params = append(params, &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal})
+		params = append(params, p.parseParam())
 		p.nextToken()
 	}
 
@@ -487,12 +585,31 @@ func (p *Parser) parseFunctionParams() []*ast.Identifier {
 	for p.curToken.Type == token.COMMA {
 		p.nextToken() // skip comma
 		if p.curToken.Type == token.IDENT {
-			params = append(params, &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal})
+			params = append(params, p.parseParam())
 			p.nextToken()
 		}
 	}
 
 	return params
+}
+
+// parseParam membaca satu parameter beserta anotasi tipenya bila ada.
+// Token kursor tetap berada di nama parameter saat fungsi ini selesai.
+func (p *Parser) parseParam() *ast.Param {
+	param := &ast.Param{
+		Name: &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal},
+	}
+
+	if p.peekTokenIs(token.TITIK_DUA) {
+		p.nextToken() // ke ':'
+		typeHint, ok := p.parseTypeHint()
+		if !ok {
+			return param
+		}
+		param.TypeHint = typeHint
+	}
+
+	return param
 }
 
 // --- Call Statement ---
@@ -604,6 +721,83 @@ func (p *Parser) parseInputStatement() *ast.InputStatement {
 
 func (p *Parser) parseInputExpression() ast.Expression {
 	return &ast.Identifier{Token: p.curToken, Value: "__input__"}
+}
+
+// --- Impor ---
+
+// parseImporStatement membaca pernyataan impor modul. Path modul ditulis
+// sebagai teks, misalnya: impor "util.nusa"
+func (p *Parser) parseImporStatement() *ast.ImporStatement {
+	stmt := &ast.ImporStatement{Token: p.curToken}
+
+	p.nextToken()
+	if p.curToken.Type != token.STRING {
+		msg := fmt.Sprintf("baris %d: nama berkas modul harus berupa teks setelah 'impor', mendapat '%s'",
+			p.curToken.Line, p.curToken.Literal)
+		p.errors = append(p.errors, msg)
+		p.skipToNextStatement()
+		return nil
+	}
+	stmt.Path = p.curToken.Literal
+
+	return stmt
+}
+
+// --- Uji / Cek ---
+
+// parseUjiStatement membaca blok uji: uji "nama" { ... }. Tubuh blok boleh
+// berisi pernyataan cek dan pernyataan biasa lainnya.
+func (p *Parser) parseUjiStatement() *ast.UjiStatement {
+	stmt := &ast.UjiStatement{Token: p.curToken}
+
+	p.nextToken()
+	if p.curToken.Type != token.STRING {
+		msg := fmt.Sprintf("baris %d: nama uji harus berupa teks setelah 'uji', mendapat '%s'",
+			p.curToken.Line, p.curToken.Literal)
+		p.errors = append(p.errors, msg)
+		p.skipToNextStatement()
+		return nil
+	}
+	stmt.Nama = p.curToken.Literal
+
+	p.nextToken()
+	if p.curToken.Type != token.LBRACE {
+		msg := fmt.Sprintf("baris %d: blok uji harus dimulai dengan '{', mendapat '%s'",
+			p.curToken.Line, p.curToken.Literal)
+		p.errors = append(p.errors, msg)
+		p.skipToNextStatement()
+		return nil
+	}
+	stmt.Tubuh = p.parseBlockStatement()
+
+	return stmt
+}
+
+// parseCekStatement membaca pernyataan cek: cek ekspresi [, "pesan"].
+func (p *Parser) parseCekStatement() *ast.CekStatement {
+	stmt := &ast.CekStatement{Token: p.curToken}
+
+	p.nextToken()
+	stmt.Ekspresi = p.parseExpression(LOWEST)
+	if stmt.Ekspresi == nil {
+		return nil
+	}
+
+	// Pesan kegagalan bersifat opsional dan ditulis setelah koma.
+	if p.peekTokenIs(token.COMMA) {
+		p.nextToken() // ke koma
+		p.nextToken() // ke teks pesan
+		if p.curToken.Type != token.STRING {
+			msg := fmt.Sprintf("baris %d: pesan pada 'cek' harus berupa teks, mendapat '%s'",
+				p.curToken.Line, p.curToken.Literal)
+			p.errors = append(p.errors, msg)
+			p.skipToNextStatement()
+			return nil
+		}
+		stmt.Pesan = p.curToken.Literal
+	}
+
+	return stmt
 }
 
 // --- Expression Statement ---
@@ -948,6 +1142,57 @@ func (p *Parser) parsePetaLiteral() ast.Expression {
 	return lit
 }
 
+// --- Coba / Tangkap ---
+
+func (p *Parser) parseCobaStatement() ast.Statement {
+	stmt := &ast.CobaStatement{Token: p.curToken}
+
+	p.nextToken()
+	if p.curToken.Type != token.LBRACE {
+		msg := fmt.Sprintf("baris %d: mengharapkan '{' setelah 'coba', mendapat '%s'",
+			p.curToken.Line, p.curToken.Literal)
+		p.errors = append(p.errors, msg)
+		p.skipToNextStatement()
+		return nil
+	}
+	stmt.Try = p.parseBlockStatement()
+
+	if !p.peekTokenIs(token.TANGKAP) {
+		msg := fmt.Sprintf("baris %d: blok 'coba' harus diikuti 'tangkap'", p.peekToken.Line)
+		p.errors = append(p.errors, msg)
+		p.skipToNextStatement()
+		return nil
+	}
+
+	p.nextToken() // 'tangkap'
+	p.nextToken()
+
+	if p.curToken.Type == token.IDENT {
+		stmt.ErrName = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+		p.nextToken()
+	}
+
+	if p.curToken.Type != token.LBRACE {
+		msg := fmt.Sprintf("baris %d: mengharapkan '{' setelah 'tangkap', mendapat '%s'",
+			p.curToken.Line, p.curToken.Literal)
+		p.errors = append(p.errors, msg)
+		p.skipToNextStatement()
+		return nil
+	}
+	stmt.Catch = p.parseBlockStatement()
+
+	return stmt
+}
+
+func (p *Parser) parseLemparkanStatement() *ast.LemparkanStatement {
+	stmt := &ast.LemparkanStatement{Token: p.curToken}
+
+	p.nextToken()
+	stmt.Value = p.parseExpression(LOWEST)
+
+	return stmt
+}
+
 // --- Pilih Statement ---
 
 func (p *Parser) parsePilihStatement() ast.Statement {
@@ -1015,10 +1260,18 @@ func (p *Parser) parseBody() *ast.BlockStatement {
 		return p.parseBlockStatement()
 	}
 
-	return &ast.BlockStatement{
-		Token:      p.curToken,
-		Statements: []ast.Statement{p.parseStatement()},
+	return p.singleStatementBlock()
+}
+
+// singleStatementBlock membentuk blok berisi satu pernyataan. Pernyataan
+// yang gagal di-parse menghasilkan blok kosong supaya tidak ada elemen
+// kosong pada pohon sintaks.
+func (p *Parser) singleStatementBlock() *ast.BlockStatement {
+	block := &ast.BlockStatement{Token: p.curToken, Statements: []ast.Statement{}}
+	if stmt := p.parseStatement(); stmt != nil {
+		block.Statements = append(block.Statements, stmt)
 	}
+	return block
 }
 
 // --- Helpers ---
@@ -1035,9 +1288,11 @@ func isAssignOperator(t token.TokenType) bool {
 func isStatementStart(t token.TokenType) bool {
 	return t == token.BUAT || t == token.TETAP || t == token.TULIS || t == token.JIKA ||
 		t == token.ULANG || t == token.SELAMA || t == token.UNTUK ||
-		t == token.PILIH || t == token.KASUS || t == token.BAWAAN || t == token.FUNGSI ||
+		t == token.PILIH || t == token.KASUS || t == token.BAWAAN ||
+		t == token.COBA || t == token.TANGKAP || t == token.LEMPAR || t == token.FUNGSI ||
 		t == token.PANGGIL || t == token.KEMBALI || t == token.BERHENTI ||
-		t == token.LANJUTKAN || t == token.MEMBACA || t == token.KALAU_TIDAK ||
+		t == token.LANJUTKAN || t == token.MEMBACA || t == token.IMPOR ||
+		t == token.KALAU_TIDAK ||
 		t == token.RBRACE || t == token.EOF
 }
 
