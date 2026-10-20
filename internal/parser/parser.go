@@ -48,6 +48,7 @@ var precedences = map[token.TokenType]Precedence{
 	token.MODULO:   PRODUCT,
 	token.LPAREN:   CALL,
 	token.LBRACKET: INDEX,
+	token.TITIK: 9,
 }
 
 type Parser struct {
@@ -124,6 +125,7 @@ func New(tokens []token.Token) *Parser {
 	p.registerInfix(token.ATAU, p.parseInfixExpression)
 	p.registerInfix(token.LPAREN, p.parseCallFromExpression)
 	p.registerInfix(token.LBRACKET, p.parseIndexExpression)
+	p.registerInfix(token.TITIK, p.parsePropertyExpression)
 
 	return p
 }
@@ -990,6 +992,18 @@ func (p *Parser) parseIndexExpression(left ast.Expression) ast.Expression {
 	if !p.expectPeek(token.RBRACKET) {
 		return nil
 	}
+
+	return expr
+}
+
+
+
+// parsePropertyExpression menghilangkan properti objek, misalnya obj.nama.
+func (p *Parser) parsePropertyExpression(left ast.Expression) ast.Expression {
+	expr := &ast.PropertyExpression{Token: p.curToken, Left: left}
+
+	p.nextToken() // skip TITIK
+	expr.Name = p.curToken.Literal
 
 	return expr
 }
