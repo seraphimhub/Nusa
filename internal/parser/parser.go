@@ -1003,7 +1003,7 @@ func (p *Parser) parsePropertyExpression(left ast.Expression) ast.Expression {
 	expr := &ast.PropertyExpression{Token: p.curToken, Left: left}
 
 	p.nextToken() // skip TITIK
-	expr.Name = p.curToken.Literal
+	expr.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
 	return expr
 }
