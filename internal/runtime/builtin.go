@@ -1,8 +1,10 @@
 package runtime
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -61,6 +63,9 @@ func newBuiltins() map[string]*Builtin {
 		newBuiltin("mutlak", builtinMutlak),
 		newBuiltin("rentang", builtinRentang),
 		newBuiltinKonteks("kudiag", builtinKudiag),
+		newBuiltin("dari_json", dariJson),
+		newBuiltin("baca_file", bacaFile),
+		newBuiltin("tulis_file", tulisFile),
 	}
 
 	builtins := make(map[string]*Builtin, len(list))
@@ -660,6 +665,59 @@ func builtinKudiag(r *Runtime, args ...Object) Object {
 	}
 
 	return &String{Value: out.String()}
+}
+
+func dariJson(args ...Object) Object {
+	if err := needArgs("dari_json", args, 1); err != nil {
+		return err
+	}
+
+	peta, ok := args[0].(*Peta)
+	if !ok {
+		return builtinError("dari_json() membutuhkan peta, mendapat %s", typeName(args[0]))
+	}
+
+	obj, err := json.Marshal(peta)
+	if err != nil {
+		return builtinError("dari_json() gagal mengubah peta ke JSON: %v", err)
+	}
+	return &String{Value: string(obj)}
+}
+
+func bacaFile(args ...Object) Object {
+	if err := needArgs("baca_file", args, 1); err != nil {
+		return err
+	}
+
+	filePath, ok := args[0].(*String)
+	if !ok {
+		return builtinError("baca_file() membutuhkan string (path file), mendapat %s", typeName(args[0]))
+	}
+
+	data, err := os.ReadFile(filePath.Value)
+	if err != nil {
+		return builtinError("baca_file() gagal membaca file %s: %v", filePath.Value, err)
+	}
+	return &String{Value: string(data)}
+}
+
+func tulisFile(args ...Object) Object {
+	if len(args) < 2 || len(args) > 3 {
+		return builtinError("tulis_file() membutuhkan 2 atau 3 argumen, diberikan %d", len(args))
+	}
+
+	filePath, ok := args[0].(*String)
+	if !ok {
+		return builtinError("tulis_file() membutuhkan string (path file) pada argumen pertama, mendapat %s", typeName(args[0]))
+	}
+
+	content, ok := args[1].(*String)
+	if !ok {
+		return builtinError("tulis_file() membutuhkan string (content) pada argumen kedua, mendapat %s", typeName(args[1]))
+	}
+
+	os.WriteFile(filePath.Value, []byte(content.Value), 0644)
+	return &Integer{Value: 1}
 }
 
 // --- Bantuan ---
