@@ -1,0 +1,12 @@
+# Contoh respons JSON untuk host web Nusa.
+#
+# Nilai 'nama' disuntik oleh host Go, lalu template ini mengubahnya
+# menjadi JSON memakai fungsi bawaan ke_json.
+
+buat data = peta {
+  "nama": nama,
+  "sapaan": "Halo " + nama + "!",
+  "jumlah_item": 3
+}
+
+tulis ke_json(data)

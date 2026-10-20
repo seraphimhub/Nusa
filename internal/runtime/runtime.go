@@ -456,6 +456,15 @@ func (r *Runtime) Global(name string) (Object, bool) {
 	return obj, ok
 }
 
+// SetGlobal menyuntik nilai ke lingkup global runtime.
+func (r *Runtime) SetGlobal(name string, obj Object) {
+	env := r.env
+	if env == nil {
+		return
+	}
+	env.store[name] = obj
+}
+
 // Execute menjalankan program. Nilai kembalian berupa Object: galat
 // dikembalikan sebagai *Error agar pemanggil bisa menentukan exit code.
 // Anggaran langkah direset setiap pemanggilan agar REPL tetap responsif.

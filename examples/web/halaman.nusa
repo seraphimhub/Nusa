@@ -1,0 +1,25 @@
+# Halaman contoh untuk host web Nusa.
+#
+# Nilai 'nama' disuntik oleh host Go lewat Runtime.SetGlobal, sehingga
+# template ini bisa dipakai tanpa perlu membaca masukan.
+#
+# Semua nilai dari pengguna wajib dilewatkan html_escape supaya tidak
+# bisa menyisipkan tag atau skrip ke halaman.
+
+tulis "<!doctype html>"
+tulis "<html lang='id'>"
+tulis "<head><meta charset='utf-8'><title>Selamat datang</title></head>"
+tulis "<body>"
+tulis "<h1>Halo " + html_escape(nama) + "!</h1>"
+tulis "<p>Dirender oleh bahasa Nusa.</p>"
+tulis "<ul>"
+untuk i dari 1 sampai 3 {
+  tulis "<li>Item " + i + "</li>"
+}
+tulis "</ul>"
+tulis "<form method='get'>"
+tulis "<input name='nama' placeholder='namamu' value='" + html_escape(nama) + "'>"
+tulis "<button type='submit'>Kirim</button>"
+tulis "</form>"
+tulis "</body>"
+tulis "</html>"
