@@ -37,6 +37,9 @@ const (
 	PANGGIL     TokenType = "PANGGIL"
 	KEMBALI     TokenType = "KEMBALI"
 	MEMBACA     TokenType = "MEMBACA"
+	IMPOR       TokenType = "IMPOR"
+	UJI         TokenType = "UJI"
+	CEK         TokenType = "CEK"
 	BERHENTI    TokenType = "BERHENTI"
 	LANJUTKAN   TokenType = "LANJUTKAN"
 	DAN         TokenType = "DAN"
@@ -82,6 +85,10 @@ const (
 	COMMA     TokenType = "COMMA"
 	TITIK_DUA TokenType = "TITIK_DUA"
 	NEWLINE   TokenType = "NEWLINE"
+
+	// KOMENTAR dipakai oleh pemformat kode yang harus menjaga komentar.
+	// Token ini tidak pernah sampai ke parser.
+	KOMENTAR TokenType = "KOMENTAR"
 )
 
 var Keywords = map[string]TokenType{
@@ -108,6 +115,9 @@ var Keywords = map[string]TokenType{
 	"panggil":     PANGGIL,
 	"kembali":     KEMBALI,
 	"membaca":     MEMBACA,
+	"impor":       IMPOR,
+	"uji":         UJI,
+	"cek":         CEK,
 	"berhenti":    BERHENTI,
 	"lanjutkan":   LANJUTKAN,
 	"dan":         DAN,

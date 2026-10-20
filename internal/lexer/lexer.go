@@ -13,6 +13,9 @@ type Lexer struct {
 	ch           byte
 	line         int
 	lineStart    int
+	// komentar menentukan apakah lexer menghasilkan token untuk komentar.
+	// Parser memakai mode false; pemformat kode memakai mode true.
+	komentar bool
 }
 
 func New(input string) *Lexer {
@@ -99,6 +102,12 @@ func (l *Lexer) skipIgnored() {
 }
 
 func (l *Lexer) NextToken() token.Token {
+	if l.komentar {
+		if tok, ok := l.nextComment(); ok {
+			return tok
+		}
+	}
+
 	l.skipIgnored()
 
 	line := l.line
@@ -299,9 +308,50 @@ func isDigit(ch byte) bool {
 	return ch >= '0' && ch <= '9'
 }
 
+// nextComment membaca komentar bila karakter berikutnya memulai komentar.
+// Nilai kedua bernilai false bila bukan komentar.
+func (l *Lexer) nextComment() (token.Token, bool) {
+	l.skipWhitespace()
+
+	if l.ch == '#' || (l.ch == '/' && l.peekChar() == '/') {
+		line := l.line
+		col := l.column()
+		start := l.position
+		l.skipLineComment()
+		return token.Token{Type: token.KOMENTAR, Literal: l.input[start:l.position], Line: line, Column: col}, true
+	}
+
+	if l.ch == '/' && l.peekChar() == '*' {
+		line := l.line
+		col := l.column()
+		start := l.position
+		l.skipBlockComment()
+		return token.Token{Type: token.KOMENTAR, Literal: l.input[start:l.position], Line: line, Column: col}, true
+	}
+
+	return token.Token{}, false
+}
+
 // Tokenize returns all tokens at once.
 func Tokenize(input string) []token.Token {
 	l := New(input)
+	var tokens []token.Token
+	for {
+		tok := l.NextToken()
+		tokens = append(tokens, tok)
+		if tok.Type == token.EOF {
+			break
+		}
+	}
+	return tokens
+}
+
+// TokenizeWithComments mengembalikan seluruh token termasuk komentar.
+// Fungsi ini dipakai pemformat kode yang harus menjaga komentar.
+func TokenizeWithComments(input string) []token.Token {
+	l := New(input)
+	l.komentar = true
+
 	var tokens []token.Token
 	for {
 		tok := l.NextToken()
