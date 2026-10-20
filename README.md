@@ -36,7 +36,8 @@ pemrograman sekaligus dipakai untuk skrip kecil sehari-hari.
 - **Perkakas**: `nusa cek` (pemeriksaan statis), `nusa fmt` (format kode),
   `nusa uji` (penjalur uji), `nusa ast`, dan `nusa token`.
 - **Pesan galat berbahasa Indonesia** dengan nomor baris dan cuplikan sumber.
-- **246 test** (lexer, parser, runtime, CLI, dan fuzz) tanpa dependensi luar.
+- **127 test** dengan 246 kasus (lexer, parser, runtime, CLI, dan fuzz) tanpa
+  dependensi luar.
 
 ## Instalasi
 
@@ -148,7 +149,10 @@ Nusa menyediakan beberapa perintah pendukung di luar `run`:
 ```bash
 nusa cek examples/tipe.nusa   # tipe salah, variabel tak terdefinisi, tak terpakai
 nusa fmt examples/halo.nusa   # format kode, komentar tetap terjaga
+nusa fmt -w examples/         # rapikan seluruh berkas .nusa di direktori
+nusa fmt --cek examples/      # hanya periksa, exit code 1 bila belum rapi
 nusa uji examples/matematika_uji.nusa  # jalankan blok uji dan cek
+nusa uji                       # cari berkas *_uji.nusa / *_test.nusa
 ```
 
 `nusa cek` melaporkan temuan sebagai galat atau peringatan. Galat membuat exit
@@ -220,7 +224,7 @@ catatan dari [CHANGELOG.md](CHANGELOG.md). Versi terbaru: **v1.2.0**
 
 | Versi | Fokus |
 | --- | --- |
-| [v1.2.0](https://github.com/seraphimhub/Nusa/releases/tag/v1.2.0) | Peta, modul, anotasi tipe, `coba`/`tangkap`, `nusa cek`/`fmt`/`uji` |
+| [v1.2.0](https://github.com/seraphimhub/Nusa/releases/tag/v1.2.0) | Peta, modul, anotasi tipe, `coba`/`tangkap`, `nusa cek`/`fmt`/`uji`, 30 fungsi bawaan, 127 test |
 | [v1.1.0](https://github.com/seraphimhub/Nusa/releases/tag/v1.1.0) | Daftar, `untuk`, `pilih`, 23 fungsi bawaan, 88 test |
 | [v1.0.0](https://github.com/seraphimhub/Nusa/releases/tag/v1.0.0) | Rilis stabil pertama: lexer, parser, evaluator, CLI |
 | v0.3.0 – v0.7.2 | Tonggak pengembangan pra-1.0 |

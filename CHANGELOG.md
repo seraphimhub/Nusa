@@ -25,8 +25,8 @@ galat, dan perkakas pengembangan (pemeriksa statis, pemformat, penjalur uji).
   yang dikenal: `angka`, `desimal`, `teks`, `logika`, `kosong`, `daftar`,
   `peta`, `fungsi`, dan `apa_saja`.
 - Pernyataan `coba`/`tangkap` untuk menangani galat, beserta `lempar` untuk
-  membuat galat sendiri. Nilai galat tertangkap adalah peta dengan kunci
-  `pesan`, `baris`, `tipe`, dan `jejak`.
+  membuat galat sendiri. Nilai galat tertangkap dapat diindeks dengan kunci
+  `pesan`, `baris`, dan `jejak`.
 - Fungsi bawaan `pesan` dan `jejak` untuk membaca detail galat, serta
   `kudiag` untuk melihat status runtime.
 - Blok `uji` berisi pemeriksaan `cek` untuk menulis pengujian di dalam berkas
@@ -40,8 +40,13 @@ galat, dan perkakas pengembangan (pemeriksa statis, pemformat, penjalur uji).
 - Galat runtime kini menampilkan cuplikan sumber di sekitar baris penyebab
   beserta penanda kolom.
 - Fuzz test untuk lexer, parser, dan runtime beserta seed awal.
+- Opsi `nusa fmt -w` untuk menyimpan hasil ke berkas, `nusa fmt --cek` untuk
+  sekadar memeriksa kerapian, dan dukungan direktori sebagai argumen.
+- `nusa uji` tanpa argumen mencari berkas uji berufiks `_uji.nusa` dan
+  `_test.nusa` pada direktori sekarang.
 - Contoh baru: `peta.nusa`, `tipe.nusa`, `galat.nusa`, `galat_tipe.nusa`,
   `matematika_uji.nusa`, dan direktori `modul/`.
+- Jumlah fungsi bawaan menjadi 30, dengan 127 test dan 246 kasus.
 
 ### Diubah
 

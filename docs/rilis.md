@@ -69,7 +69,7 @@ Selama versi masih `0.y.z`, API dan sintaks bahasa dianggap belum stabil.
 
 | Versi | Tanggal | Catatan |
 | --- | --- | --- |
-| 1.2.0 | 2026-10-20 | Peta, modul, anotasi tipe, `coba`/`tangkap`, `nusa cek`/`fmt`/`uji` |
+| 1.2.0 | 2026-10-20 | Peta, modul, anotasi tipe, `coba`/`tangkap`, `nusa cek`/`fmt`/`uji`, 30 fungsi bawaan, 127 test |
 | 1.1.0 | 2026-10-19 | Daftar, `untuk`, `pilih`, 23 fungsi bawaan, 88 test |
 | 1.0.0 | 2026-07-01 | Rilis stabil pertama |
 | 0.7.2 | 2026-04-14 | `kalau_tidak` |
