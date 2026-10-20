@@ -12,6 +12,9 @@ import (
 type Builtin struct {
 	Name string
 	Fn   func(args ...Object) Object
+	// Konteks dipakai builtin yang membutuhkan akses ke runtime, misalnya
+	// kudiag. Bila diisi, fungsi ini yang dipakai.
+	Konteks func(r *Runtime, args ...Object) Object
 }
 
 func (b *Builtin) Type() ObjectType { return BUILTIN_OBJ }
@@ -21,10 +24,17 @@ func newBuiltin(name string, fn func(args ...Object) Object) *Builtin {
 	return &Builtin{Name: name, Fn: fn}
 }
 
+// newBuiltinKonteks membuat builtin yang menerima akses ke runtime.
+func newBuiltinKonteks(name string, fn func(r *Runtime, args ...Object) Object) *Builtin {
+	return &Builtin{Name: name, Konteks: fn}
+}
+
 func newBuiltins() map[string]*Builtin {
 	list := []*Builtin{
 		newBuiltin("panjang", builtinPanjang),
 		newBuiltin("tipe", builtinTipe),
+		newBuiltin("pesan", builtinPesan),
+		newBuiltin("jejak", builtinJejak),
 		newBuiltin("ada", builtinAda),
 		newBuiltin("kunci", builtinKunci),
 		newBuiltin("nilai", builtinNilai),
@@ -50,6 +60,7 @@ func newBuiltins() map[string]*Builtin {
 		newBuiltin("langit", builtinLangit),
 		newBuiltin("mutlak", builtinMutlak),
 		newBuiltin("rentang", builtinRentang),
+		newBuiltinKonteks("kudiag", builtinKudiag),
 	}
 
 	builtins := make(map[string]*Builtin, len(list))
@@ -57,6 +68,19 @@ func newBuiltins() map[string]*Builtin {
 		builtins[b.Name] = b
 	}
 	return builtins
+}
+
+// BuiltinNames mengembalikan nama seluruh fungsi bawaan. Perkakas analisis
+// memakai daftar ini agar nama bawaan tidak dianggap variabel tak
+// terdefinisi.
+func BuiltinNames() []string {
+	list := newBuiltins()
+	nama := make([]string, 0, len(list))
+	for name := range list {
+		nama = append(nama, name)
+	}
+	sort.Strings(nama)
+	return nama
 }
 
 func builtinPanjang(args ...Object) Object {
@@ -135,6 +159,40 @@ func builtinAmbil(args ...Object) Object {
 		return args[2]
 	}
 	return nilai
+}
+
+// objectGalat mengambil objek galat dari argumen, atau mengembalikan galat
+// tipe yang jelas.
+func objectGalat(nama string, args []Object) (*Error, *Error) {
+	if err := needArgs(nama, args, 1); err != nil {
+		return nil, err
+	}
+	galat, ok := args[0].(*GalatValue)
+	if !ok {
+		return nil, builtinError("%s() membutuhkan objek galat, mendapat %s", nama, typeName(args[0]))
+	}
+	return galat.Err, nil
+}
+
+func builtinPesan(args ...Object) Object {
+	errObj, err := objectGalat("pesan", args)
+	if err != nil {
+		return err
+	}
+	return &String{Value: errObj.Message}
+}
+
+func builtinJejak(args ...Object) Object {
+	errObj, err := objectGalat("jejak", args)
+	if err != nil {
+		return err
+	}
+
+	frames := make([]Object, 0, len(errObj.Trace))
+	for _, frame := range errObj.Trace {
+		frames = append(frames, &String{Value: fmt.Sprintf("%s (baris %d)", frame.Name, frame.Line)})
+	}
+	return &List{Elements: frames}
 }
 
 func builtinTipe(args ...Object) Object {
@@ -575,6 +633,33 @@ func builtinRentang(args ...Object) Object {
 		elements = append(elements, &Integer{Value: i})
 	}
 	return &List{Elements: elements}
+}
+
+// builtinKudiag mengembalikan ringkasan keadaan runtime: jumlah langkah
+// eksekusi, kedalaman pemanggilan, dan jejak fungsi yang sedang aktif.
+// Fungsi ini membantu menelusuri program yang looping atau rekursi dalam.
+func builtinKudiag(r *Runtime, args ...Object) Object {
+	if err := needArgs("kudiag", args, 0); err != nil {
+		return err
+	}
+
+	var out strings.Builder
+	fmt.Fprintf(&out, "langkah: %d\n", r.steps)
+	fmt.Fprintf(&out, "kedalaman: %d\n", len(r.stack))
+	fmt.Fprintf(&out, "variabel aktif: %d\n", len(r.env.store))
+
+	if len(r.stack) > 0 {
+		out.WriteString("jejak: ")
+		for i, frame := range r.stack {
+			if i > 0 {
+				out.WriteString(" -> ")
+			}
+			out.WriteString(frame.Name)
+		}
+		out.WriteString("\n")
+	}
+
+	return &String{Value: out.String()}
 }
 
 // --- Bantuan ---

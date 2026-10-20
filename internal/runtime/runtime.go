@@ -10,6 +10,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/seraphimhub/Nusa/internal/ast"
+	"github.com/seraphimhub/Nusa/internal/tipe"
+	"github.com/seraphimhub/Nusa/internal/token"
 )
 
 // --- Object System ---
@@ -30,6 +32,7 @@ const (
 	FUNCTION_OBJ ObjectType = "FUNCTION"
 	BUILTIN_OBJ  ObjectType = "BUILTIN"
 	ERROR_OBJ    ObjectType = "ERROR"
+	GALAT_OBJ    ObjectType = "GALAT"
 )
 
 type Object interface {
@@ -217,9 +220,11 @@ func (cv *ContinueValue) Inspect() string  { return "lanjutkan" }
 
 type FunctionObject struct {
 	Name   string
-	Params []*ast.Identifier
+	Params []*ast.Param
 	Body   *ast.BlockStatement
 	Env    *Environment
+	// ReturnType berisi nama tipe kembalian bila fungsi punya anotasi.
+	ReturnType string
 }
 
 func (fo *FunctionObject) Type() ObjectType { return FUNCTION_OBJ }
@@ -236,15 +241,27 @@ type Frame struct {
 	Line int
 }
 
-// Error membawa pesan, nomor baris, dan jejak pemanggilan fungsi sehingga
-// galat bisa dilacak sampai ke pemanggilnya.
+// Error membawa pesan, nomor baris, kolom, dan jejak pemanggilan fungsi
+// sehingga galat bisa dilacak sampai ke pemanggilnya. Kolom dipakai untuk
+// menunjuk letak yang tepat pada cuplikan sumber.
 type Error struct {
 	Message string
 	Line    int
+	Column  int
 	Trace   []Frame
 }
 
 func (e *Error) Type() ObjectType { return ERROR_OBJ }
+
+// Galat adalah nilai galat yang bisa dipegang program, misalnya variabel pada
+// blok 'tangkap'. Tipe ini terpisah dari ERROR_OBJ agar tidak tertukar dengan
+// galat yang sedang dipropagasikan runtime.
+type GalatValue struct {
+	Err *Error
+}
+
+func (g *GalatValue) Type() ObjectType { return GALAT_OBJ }
+func (g *GalatValue) Inspect() string  { return g.Err.Inspect() }
 
 // maxTraceFrames membatasi panjang jejak yang ditampilkan agar galat pada
 // rekursi dalam tetap terbaca.
@@ -277,6 +294,11 @@ type Environment struct {
 	store  map[string]Object
 	consts map[string]bool
 	outer  *Environment
+	// returnType dan namaFungsi mencatat fungsi yang sedang berjalan.
+	// Keduanya dipakai untuk memeriksa nilai kembalian terhadap anotasi
+	// tipe tepat di pernyataan 'kembali'.
+	returnType string
+	namaFungsi string
 }
 
 func NewEnvironment() *Environment {
@@ -361,6 +383,33 @@ type Runtime struct {
 	limits   Limits
 	steps    int64
 	stack    []Frame
+	// pemuatModul dipakai untuk memuat modul pada pernyataan 'impor'.
+	pemuatModul ModuleLoader
+	// hasilCek mengumpulkan hasil dari pernyataan 'cek'.
+	hasilCek []HasilCek
+	// ujiSekarang adalah nama blok uji yang sedang berjalan.
+	ujiSekarang string
+	// dalamUji menandai bahwa eksekusi sedang berada di dalam blok
+	// 'uji'. Di dalam blok uji, pemeriksaan yang gagal dicatat sebagai
+	// kegagalan tanpa menghentikan program.
+	dalamUji bool
+}
+
+// HasilCek menyimpan hasil satu pernyataan cek.
+type HasilCek struct {
+	// Uji adalah nama blok uji pemilik pemeriksaan. Kosong untuk
+	// pemeriksaan yang ditulis di luar blok uji.
+	Uji string
+	// Lolos bernilai true bila ekspresi yang diperiksa bernilai benar.
+	Lolos bool
+	// Pesan menjelaskan kegagalan. Kosong bila pemeriksaan lulus.
+	Pesan string
+	// Ekspresi adalah ekspresi yang diperiksa dalam bentuk sumber.
+	Ekspresi string
+	// Line adalah baris tempat pemeriksaan ditulis.
+	Line int
+	// Column adalah kolom tempat pemeriksaan ditulis.
+	Column int
 }
 
 func New() *Runtime {
@@ -383,6 +432,28 @@ func NewWithIO(out io.Writer, in io.Reader) *Runtime {
 // SetLimits mengganti batas eksekusi runtime.
 func (r *Runtime) SetLimits(limits Limits) {
 	r.limits = limits
+}
+
+// Symbol adalah satu nama yang diekspor modul.
+type Symbol struct {
+	Name  string
+	Value Object
+}
+
+// ModuleLoader memuat modul dari path dan mengembalikan simbol yang
+// diekspor modul tersebut. Path relatif diselesaikan oleh pemuat.
+type ModuleLoader func(path string, line int) ([]Symbol, error)
+
+// SetModuleLoader memasang pemuat modul pada runtime. Tanpa pemuat,
+// pernyataan 'impor' akan menghasilkan galat yang jelas.
+func (r *Runtime) SetModuleLoader(loader ModuleLoader) {
+	r.pemuatModul = loader
+}
+
+// Global mengembalikan nilai variabel tingkat atas dengan nama tersebut.
+func (r *Runtime) Global(name string) (Object, bool) {
+	obj, ok := r.env.Get(name)
+	return obj, ok
 }
 
 // Execute menjalankan program. Nilai kembalian berupa Object: galat
@@ -416,7 +487,7 @@ func (r *Runtime) eval(node ast.Node, env *Environment) Object {
 
 	case *ast.LetStatement:
 		if env.IsConstLocal(n.Name.Value) {
-			return newError(n.Token.Line, "'%s' adalah konstanta dan tidak bisa dideklarasikan ulang", n.Name.Value)
+			return newErrorTok(n.Token, "'%s' adalah konstanta dan tidak bisa dideklarasikan ulang", n.Name.Value)
 		}
 
 		val := r.eval(n.Value, env)
@@ -424,7 +495,13 @@ func (r *Runtime) eval(node ast.Node, env *Environment) Object {
 			return val
 		}
 		if val == nil {
-			return newError(n.Token.Line, "ekspresi tidak menghasilkan nilai")
+			return newErrorTok(n.Token, "ekspresi tidak menghasilkan nilai")
+		}
+
+		if n.TypeHint != "" && !cocokTipe(n.TypeHint, val) {
+			return newErrorTok(ast.TokenOf(n.Value),
+				"nilai untuk '%s' harus bertipe %s, mendapat %s",
+				n.Name.Value, n.TypeHint, typeName(val))
 		}
 
 		if n.Konst {
@@ -439,7 +516,7 @@ func (r *Runtime) eval(node ast.Node, env *Environment) Object {
 			return val
 		}
 		if val == nil {
-			return newError(n.Token.Line, "tidak ada nilai untuk ditulis")
+			return newErrorTok(n.Token, "tidak ada nilai untuk ditulis")
 		}
 		fmt.Fprintln(r.Out, val.Inspect())
 
@@ -458,15 +535,45 @@ func (r *Runtime) eval(node ast.Node, env *Environment) Object {
 	case *ast.PilihStatement:
 		return r.evalPilihStatement(n, env)
 
+	case *ast.CobaStatement:
+		return r.evalCobaStatement(n, env)
+
+	case *ast.ImporStatement:
+		return r.evalImporStatement(n, env)
+
+	case *ast.UjiStatement:
+		return r.evalUjiStatement(n, env)
+
+	case *ast.CekStatement:
+		return r.evalCekStatement(n, env)
+
+	case *ast.LemparkanStatement:
+		value := r.eval(n.Value, env)
+		if isError(value) {
+			return value
+		}
+		if value == nil {
+			return newErrorTok(n.Token, "lemparkan membutuhkan nilai galat")
+		}
+		switch errValue := value.(type) {
+		case *GalatValue:
+			// Galat yang ditangkap bisa dilemparkan ulang apa adanya.
+			return errValue.Err
+		case *Error:
+			return errValue
+		}
+		return newErrorTok(n.Token, "%s", value.Inspect())
+
 	case *ast.WhileStatement:
 		return r.evalWhileStatement(n, env)
 
 	case *ast.FunctionStatement:
 		fn := &FunctionObject{
-			Name:   n.Name.Value,
-			Params: n.Params,
-			Body:   n.Body,
-			Env:    env,
+			Name:       n.Name.Value,
+			Params:     n.Params,
+			Body:       n.Body,
+			Env:        env,
+			ReturnType: n.ReturnType,
 		}
 		env.Set(n.Name.Value, fn)
 
@@ -481,6 +588,12 @@ func (r *Runtime) eval(node ast.Node, env *Environment) Object {
 		if isError(val) {
 			return val
 		}
+		// Anotasi tipe kembalian diperiksa tepat di pernyataan 'kembali'
+		// supaya galat menunjuk ke sumber yang salah.
+		if env.returnType != "" && !cocokTipe(env.returnType, val) {
+			return newErrorTok(n.Token, "fungsi '%s' harus mengembalikan nilai bertipe %s, mendapat %s",
+				env.namaFungsi, env.returnType, typeName(val))
+		}
 		return &ReturnValue{Value: val}
 
 	case *ast.BreakStatement:
@@ -491,7 +604,7 @@ func (r *Runtime) eval(node ast.Node, env *Environment) Object {
 
 	case *ast.InputStatement:
 		if n.Name == nil {
-			return newError(n.Token.Line, "membaca membutuhkan nama variabel")
+			return newErrorTok(n.Token, "membaca membutuhkan nama variabel")
 		}
 		env.Set(n.Name.Value, &String{Value: r.readInput()})
 
@@ -525,7 +638,7 @@ func (r *Runtime) eval(node ast.Node, env *Environment) Object {
 		if isError(right) {
 			return right
 		}
-		return r.evalPrefixExpression(n.Operator, right, n.Token.Line)
+		return r.evalPrefixExpression(n.Operator, right, n.Token)
 
 	case *ast.CallExpression:
 		return r.evalCallExpression(n, env)
@@ -575,6 +688,10 @@ func (r *Runtime) evalProgram(program *ast.Program, env *Environment) Object {
 	for _, statement := range program.Statements {
 		result = r.eval(statement, env)
 
+		if errObj, ok := result.(*Error); ok {
+			attachPosition(errObj, statement)
+		}
+
 		switch result := result.(type) {
 		case *ReturnValue:
 			return result.Value
@@ -595,6 +712,10 @@ func (r *Runtime) evalBlockStatement(block *ast.BlockStatement, env *Environment
 
 	for _, statement := range block.Statements {
 		result = r.eval(statement, env)
+
+		if errObj, ok := result.(*Error); ok {
+			attachPosition(errObj, statement)
+		}
 
 		if result != nil {
 			rt := result.Type()
@@ -634,7 +755,7 @@ func (r *Runtime) evalForStatement(fs *ast.ForStatement, env *Environment) Objec
 
 	count, ok := countObj.(*Integer)
 	if !ok {
-		return newError(fs.Token.Line, "ulang membutuhkan angka bulat, mendapat %s", typeName(countObj))
+		return newErrorTok(fs.Token, "ulang membutuhkan angka bulat, mendapat %s", typeName(countObj))
 	}
 
 	for i := int64(0); i < count.Value; i++ {
@@ -672,7 +793,7 @@ func (r *Runtime) evalUntukStatement(us *ast.UntukStatement, env *Environment) O
 		if end, ok := endObj.(*Integer); ok {
 			if step, ok := stepObj.(*Integer); ok {
 				if step.Value == 0 {
-					return newError(us.Token.Line, "langkah tidak boleh nol")
+					return newErrorTok(us.Token, "langkah tidak boleh nol")
 				}
 				for i := start.Value; (step.Value > 0 && i <= end.Value) || (step.Value < 0 && i >= end.Value); i += step.Value {
 					env.Set(us.Name.Value, &Integer{Value: i})
@@ -688,18 +809,18 @@ func (r *Runtime) evalUntukStatement(us *ast.UntukStatement, env *Environment) O
 
 	start, ok := toFloat64(startObj)
 	if !ok {
-		return newError(us.Token.Line, "nilai awal harus berupa angka, mendapat %s", typeName(startObj))
+		return newErrorTok(us.Token, "nilai awal harus berupa angka, mendapat %s", typeName(startObj))
 	}
 	end, ok := toFloat64(endObj)
 	if !ok {
-		return newError(us.Token.Line, "nilai akhir harus berupa angka, mendapat %s", typeName(endObj))
+		return newErrorTok(us.Token, "nilai akhir harus berupa angka, mendapat %s", typeName(endObj))
 	}
 	step, ok := toFloat64(stepObj)
 	if !ok {
-		return newError(us.Token.Line, "langkah harus berupa angka, mendapat %s", typeName(stepObj))
+		return newErrorTok(us.Token, "langkah harus berupa angka, mendapat %s", typeName(stepObj))
 	}
 	if step == 0 {
-		return newError(us.Token.Line, "langkah tidak boleh nol")
+		return newErrorTok(us.Token, "langkah tidak boleh nol")
 	}
 
 	for i := start; (step > 0 && i <= end) || (step < 0 && i >= end); i += step {
@@ -760,14 +881,136 @@ func (r *Runtime) evalUntukDalamStatement(ud *ast.UntukDalamStatement, env *Envi
 			}
 		}
 	default:
-		return newError(ud.Token.Line, "untuk ... dalam hanya bisa mengulang daftar, teks, atau peta; mendapat %s", typeName(iterable))
+		return newErrorTok(ud.Token, "untuk ... dalam hanya bisa mengulang daftar, teks, atau peta; mendapat %s", typeName(iterable))
 	}
 
 	return nil
 }
 
-// --- Pilih Statement ---
+// --- Coba / Tangkap ---
 
+// evalCobaStatement menjalankan blok coba; bila hasilnya galat, blok tangkap
+// dijalankan dengan objek galat tersedia bagi program.
+func (r *Runtime) evalCobaStatement(cs *ast.CobaStatement, env *Environment) Object {
+	result := r.eval(cs.Try, env)
+
+	errObj, tertangkap := result.(*Error)
+	if !tertangkap {
+		// Termasuk return/break/continue yang harus tetap diteruskan.
+		return result
+	}
+
+	if cs.ErrName != nil {
+		env.Set(cs.ErrName.Value, &GalatValue{Err: errObj})
+	}
+	return r.eval(cs.Catch, env)
+}
+
+// --- Impor ---
+
+// evalImporStatement memuat modul dan memasukkan simbol yang diekspor modul
+// ke dalam lingkup saat ini.
+func (r *Runtime) evalImporStatement(n *ast.ImporStatement, env *Environment) Object {
+	if r.pemuatModul == nil {
+		return newErrorTok(n.Token, "impor modul tidak tersedia pada runtime ini")
+	}
+
+	simbol, err := r.pemuatModul(n.Path, n.Token.Line)
+	if err != nil {
+		return newErrorTok(n.Token, "%s", err.Error())
+	}
+
+	for _, s := range simbol {
+		if env.IsConstLocal(s.Name) {
+			return newErrorTok(n.Token, "impor modul mendefinisikan '%s' yang sudah ada sebagai konstanta", s.Name)
+		}
+		env.Set(s.Name, s.Value)
+	}
+
+	return nil
+}
+
+// --- Uji / Cek ---
+
+// evalUjiStatement menjalankan isi satu blok uji. Semua pemeriksaan di dalam
+// blok dicatat; galat lain yang muncul selama blok berjalan juga dicatat
+// sebagai kegagalan agar satu tes yang rusak tidak menghentikan tes lain.
+func (r *Runtime) evalUjiStatement(n *ast.UjiStatement, env *Environment) Object {
+	sebelumnya := r.ujiSekarang
+	dalamUji := r.dalamUji
+
+	r.ujiSekarang = n.Nama
+	r.dalamUji = true
+
+	result := r.eval(n.Tubuh, env)
+
+	r.ujiSekarang = sebelumnya
+	r.dalamUji = dalamUji
+
+	if errObj, ok := result.(*Error); ok {
+		r.catatGagalUji(n, errObj)
+		return nil
+	}
+
+	return nil
+}
+
+// evalCekStatement memeriksa bahwa ekspresi bernilai benar. Pemeriksaan
+// yang gagal dicatat pada runtime sehingga penjalur uji bisa melaporkannya.
+func (r *Runtime) evalCekStatement(n *ast.CekStatement, env *Environment) Object {
+	nilai := r.eval(n.Ekspresi, env)
+
+	hasil := HasilCek{
+		Uji:      r.ujiSekarang,
+		Ekspresi: n.Ekspresi.String(),
+		Line:     n.Token.Line,
+		Column:   n.Token.Column,
+	}
+
+	if errObj, ok := nilai.(*Error); ok {
+		hasil.Pesan = errObj.Message
+		r.hasilCek = append(r.hasilCek, hasil)
+		if r.dalamUji {
+			return nil
+		}
+		return errObj
+	}
+
+	if !isTruthy(nilai) {
+		hasil.Pesan = n.Pesan
+		if hasil.Pesan == "" {
+			hasil.Pesan = fmt.Sprintf("ekspresi '%s' harus bernilai benar", hasil.Ekspresi)
+		}
+		r.hasilCek = append(r.hasilCek, hasil)
+		if r.dalamUji {
+			return nil
+		}
+		return newErrorTok(n.Token, "%s", hasil.Pesan)
+	}
+
+	hasil.Lolos = true
+	r.hasilCek = append(r.hasilCek, hasil)
+
+	return nil
+}
+
+// catatGagalUji mencatat galat yang terjadi di luar pemeriksaan.
+func (r *Runtime) catatGagalUji(n *ast.UjiStatement, errObj *Error) {
+	r.hasilCek = append(r.hasilCek, HasilCek{
+		Uji:      n.Nama,
+		Pesan:    errObj.Message,
+		Ekspresi: errObj.Message,
+		Line:     errObj.Line,
+		Column:   errObj.Column,
+	})
+}
+
+// HasilCek mengembalikan hasil seluruh pemeriksaan yang sudah dijalankan.
+func (r *Runtime) HasilCek() []HasilCek {
+	return r.hasilCek
+}
+
+// --- Pilih Statement ---
 // evalPilihStatement mencocokkan subjek dengan setiap kasus memakai
 // kesetaraan nilai. Cabang pertama yang cocok langsung dijalankan tanpa
 // fallthrough; bawaan dipakai bila tidak ada kasus yang cocok.
@@ -840,7 +1083,7 @@ func (r *Runtime) evalIdentifier(node *ast.Identifier, env *Environment) Object 
 	if builtin, ok := r.builtins[node.Value]; ok {
 		return builtin
 	}
-	return newError(node.Token.Line, "variabel '%s' tidak ditemukan", node.Value)
+	return newErrorTok(node.Token, "variabel '%s' tidak ditemukan", node.Value)
 }
 
 // --- Assignment ---
@@ -848,7 +1091,7 @@ func (r *Runtime) evalIdentifier(node *ast.Identifier, env *Environment) Object 
 func (r *Runtime) evalAssign(ae *ast.AssignExpression, env *Environment) Object {
 	if ident, ok := ae.Target.(*ast.Identifier); ok {
 		if env.FindConst(ident.Value) {
-			return newError(ae.Token.Line, "'%s' adalah konstanta dan tidak bisa diubah", ident.Value)
+			return newErrorTok(ae.Token, "'%s' adalah konstanta dan tidak bisa diubah", ident.Value)
 		}
 	}
 
@@ -872,7 +1115,7 @@ func (r *Runtime) evalAssign(ae *ast.AssignExpression, env *Environment) Object 
 
 	if ae.Operator != "=" {
 		if container != nil {
-			value, errObj := readIndex(container, indexObj, ae.Token.Line)
+			value, errObj := readIndex(container, indexObj, indexToken(ae.Target))
 			if errObj != nil {
 				return errObj
 			}
@@ -891,12 +1134,12 @@ func (r *Runtime) evalAssign(ae *ast.AssignExpression, env *Environment) Object 
 		return value
 	}
 	if value == nil {
-		return newError(ae.Token.Line, "ekspresi tidak menghasilkan nilai")
+		return newErrorTok(ae.Token, "ekspresi tidak menghasilkan nilai")
 	}
 
 	if ae.Operator != "=" {
 		op := strings.TrimSuffix(ae.Operator, "=")
-		value = r.evalInfixExpression(op, current, value, ae.Token.Line)
+		value = r.evalInfixExpression(op, current, value, ae.Token)
 		if isError(value) {
 			return value
 		}
@@ -909,12 +1152,12 @@ func (r *Runtime) evalAssign(ae *ast.AssignExpression, env *Environment) Object 
 		}
 		return value
 	case *ast.IndexExpression:
-		if errObj := writeIndex(container, indexObj, value, ae.Token.Line); errObj != nil {
+		if errObj := writeIndex(container, indexObj, value, indexToken(ae.Target)); errObj != nil {
 			return errObj
 		}
 		return value
 	default:
-		return newError(ae.Token.Line, "target penugasan harus variabel, elemen daftar, atau kunci peta")
+		return newErrorTok(ae.Token, "target penugasan harus variabel, elemen daftar, atau kunci peta")
 	}
 }
 
@@ -930,7 +1173,7 @@ func (r *Runtime) evalIndexExpression(node *ast.IndexExpression, env *Environmen
 		return indexObj
 	}
 
-	value, errObj := readIndex(left, indexObj, node.Token.Line)
+	value, errObj := readIndex(left, indexObj, node.Token)
 	if errObj != nil {
 		return errObj
 	}
@@ -938,73 +1181,75 @@ func (r *Runtime) evalIndexExpression(node *ast.IndexExpression, env *Environmen
 }
 
 // readIndex mengambil elemen daftar/teks, entri peta, atau bidang galat.
-func readIndex(container Object, indexObj Object, line int) (Object, *Error) {
+func readIndex(container Object, indexObj Object, tok token.Token) (Object, *Error) {
 	switch obj := container.(type) {
 	case *List:
 		index, err := resolveIndex(indexObj, len(obj.Elements))
 		if err != nil {
-			return nil, newError(line, "%s", err.Error())
+			return nil, newErrorTok(tok, "%s", err.Error())
 		}
 		return obj.Elements[index], nil
 	case *String:
 		runes := []rune(obj.Value)
 		index, err := resolveIndex(indexObj, len(runes))
 		if err != nil {
-			return nil, newError(line, "%s", err.Error())
+			return nil, newErrorTok(tok, "%s", err.Error())
 		}
 		return &String{Value: string(runes[index])}, nil
 	case *Peta:
 		nilai, ada, errObj := obj.Ambil(indexObj)
 		if errObj != nil {
-			errObj.Line = line
+			errObj.Line = tok.Line
+			errObj.Column = tok.Column
 			return nil, errObj
 		}
 		if !ada {
-			return nil, newError(line, "kunci %s tidak ada di peta; gunakan ada(peta, kunci) atau ambil(peta, kunci, bawaan)", repr(indexObj))
+			return nil, newErrorTok(tok, "kunci %s tidak ada di peta; gunakan ada(peta, kunci) atau ambil(peta, kunci, bawaan)", repr(indexObj))
 		}
 		return nilai, nil
-	case *Error:
+	case *GalatValue:
 		key, ok := indexObj.(*String)
 		if !ok {
-			return nil, newError(line, "galat hanya bisa diindeks dengan teks: \"pesan\", \"baris\", atau \"jejak\"")
+			return nil, newErrorTok(tok, "galat hanya bisa diindeks dengan teks: \"pesan\", \"baris\", atau \"jejak\"")
 		}
 		switch key.Value {
 		case "pesan":
-			return &String{Value: obj.Message}, nil
+			return &String{Value: obj.Err.Message}, nil
 		case "baris":
-			return &Integer{Value: int64(obj.Line)}, nil
+			return &Integer{Value: int64(obj.Err.Line)}, nil
 		case "jejak":
-			frames := make([]Object, 0, len(obj.Trace))
-			for _, frame := range obj.Trace {
+			frames := make([]Object, 0, len(obj.Err.Trace))
+			for _, frame := range obj.Err.Trace {
 				frames = append(frames, &String{Value: fmt.Sprintf("%s (baris %d)", frame.Name, frame.Line)})
 			}
 			return &List{Elements: frames}, nil
 		default:
-			return nil, newError(line, "kunci galat '%s' tidak dikenal; pakai \"pesan\", \"baris\", atau \"jejak\"", key.Value)
+			return nil, newErrorTok(tok, "kunci galat '%s' tidak dikenal; pakai \"pesan\", \"baris\", atau \"jejak\"", key.Value)
 		}
 	default:
-		return nil, newError(line, "tipe %s tidak bisa diindeks", typeName(container))
+		return nil, newErrorTok(tok, "tipe %s tidak bisa diindeks", typeName(container))
 	}
 }
 
 // writeIndex menulis elemen daftar atau entri peta.
-func writeIndex(container Object, indexObj Object, value Object, line int) *Error {
+func writeIndex(container Object, indexObj Object, value Object, tok token.Token) *Error {
 	switch obj := container.(type) {
 	case *List:
 		index, err := resolveIndex(indexObj, len(obj.Elements))
 		if err != nil {
-			return newError(line, "%s", err.Error())
+			return newErrorTok(tok, "%s", err.Error())
 		}
 		obj.Elements[index] = value
 		return nil
 	case *Peta:
 		if errObj := obj.Set(indexObj, value); errObj != nil {
-			errObj.Line = line
+			errObj.Line = tok.Line
+			errObj.Column = tok.Column
 			return errObj
 		}
 		return nil
 	default:
-		return newError(line, "tipe %s tidak bisa diindeks", typeName(container))
+		return newErrorTok(tok, "tipe %s tidak bisa diindeks", typeName(container))
 	}
 }
 
@@ -1027,14 +1272,14 @@ func resolveIndex(indexObj Object, length int) (int, error) {
 
 // --- Prefix Expression ---
 
-func (r *Runtime) evalPrefixExpression(operator string, right Object, line int) Object {
+func (r *Runtime) evalPrefixExpression(operator string, right Object, tok token.Token) Object {
 	switch operator {
 	case "!", "tidak":
 		return r.evalBangOperatorExpression(right)
 	case "-":
-		return r.evalMinusPrefixOperatorExpression(right, line)
+		return r.evalMinusPrefixOperatorExpression(right, tok)
 	default:
-		return newError(line, "operator '%s' tidak dikenal", operator)
+		return newErrorTok(tok, "operator '%s' tidak dikenal", operator)
 	}
 }
 
@@ -1049,14 +1294,14 @@ func (r *Runtime) evalBangOperatorExpression(right Object) Object {
 	}
 }
 
-func (r *Runtime) evalMinusPrefixOperatorExpression(right Object, line int) Object {
+func (r *Runtime) evalMinusPrefixOperatorExpression(right Object, tok token.Token) Object {
 	switch obj := right.(type) {
 	case *Integer:
 		return &Integer{Value: -obj.Value}
 	case *Float:
 		return &Float{Value: -obj.Value}
 	default:
-		return newError(line, "operator '-' tidak bisa dipakai untuk %s", typeName(right))
+		return newErrorTok(tok, "operator '-' tidak bisa dipakai untuk %s", typeName(right))
 	}
 }
 
@@ -1093,10 +1338,10 @@ func (r *Runtime) evalInfix(n *ast.InfixExpression, env *Environment) Object {
 		return right
 	}
 
-	return r.evalInfixExpression(n.Operator, left, right, n.Token.Line)
+	return r.evalInfixExpression(n.Operator, left, right, n.Token)
 }
 
-func (r *Runtime) evalInfixExpression(operator string, left Object, right Object, line int) Object {
+func (r *Runtime) evalInfixExpression(operator string, left Object, right Object, tok token.Token) Object {
 	// Perbandingan kesetaraan berlaku lintas tipe tanpa error.
 	if operator == "==" {
 		return nativeBoolToBooleanObject(objectsEqual(left, right))
@@ -1113,27 +1358,27 @@ func (r *Runtime) evalInfixExpression(operator string, left Object, right Object
 	if isNumeric(left) && isNumeric(right) {
 		if li, ok := left.(*Integer); ok {
 			if ri, ok := right.(*Integer); ok {
-				return r.evalIntegerInfixExpression(operator, li.Value, ri.Value, line)
+				return r.evalIntegerInfixExpression(operator, li.Value, ri.Value, tok)
 			}
 		}
 		lf, _ := toFloat64(left)
 		rf, _ := toFloat64(right)
-		return r.evalFloatInfixExpression(operator, lf, rf, line)
+		return r.evalFloatInfixExpression(operator, lf, rf, tok)
 	}
 
 	if left.Type() == STRING_OBJ && right.Type() == STRING_OBJ {
-		return r.evalStringInfixExpression(operator, left.(*String).Value, right.(*String).Value, line)
+		return r.evalStringInfixExpression(operator, left.(*String).Value, right.(*String).Value, tok)
 	}
 
 	if left.Type() == BOOLEAN_OBJ && right.Type() == BOOLEAN_OBJ {
-		return r.evalBooleanInfixExpression(operator, left.(*Boolean).Value, right.(*Boolean).Value, line)
+		return r.evalBooleanInfixExpression(operator, left.(*Boolean).Value, right.(*Boolean).Value, tok)
 	}
 
-	return newError(line, "operator '%s' tidak bisa dipakai untuk %s dan %s",
+	return newErrorTok(tok, "operator '%s' tidak bisa dipakai untuk %s dan %s",
 		operator, typeName(left), typeName(right))
 }
 
-func (r *Runtime) evalIntegerInfixExpression(operator string, left, right int64, line int) Object {
+func (r *Runtime) evalIntegerInfixExpression(operator string, left, right int64, tok token.Token) Object {
 	switch operator {
 	case "+":
 		return &Integer{Value: left + right}
@@ -1143,12 +1388,12 @@ func (r *Runtime) evalIntegerInfixExpression(operator string, left, right int64,
 		return &Integer{Value: left * right}
 	case "/":
 		if right == 0 {
-			return newError(line, "pembagian dengan nol")
+			return newErrorTok(tok, "pembagian dengan nol")
 		}
 		return &Integer{Value: left / right}
 	case "%":
 		if right == 0 {
-			return newError(line, "modulo dengan nol")
+			return newErrorTok(tok, "modulo dengan nol")
 		}
 		return &Integer{Value: left % right}
 	case "<":
@@ -1160,11 +1405,11 @@ func (r *Runtime) evalIntegerInfixExpression(operator string, left, right int64,
 	case ">=":
 		return nativeBoolToBooleanObject(left >= right)
 	default:
-		return newError(line, "operator '%s' tidak dikenal untuk angka", operator)
+		return newErrorTok(tok, "operator '%s' tidak dikenal untuk angka", operator)
 	}
 }
 
-func (r *Runtime) evalFloatInfixExpression(operator string, left, right float64, line int) Object {
+func (r *Runtime) evalFloatInfixExpression(operator string, left, right float64, tok token.Token) Object {
 	switch operator {
 	case "+":
 		return &Float{Value: left + right}
@@ -1174,7 +1419,7 @@ func (r *Runtime) evalFloatInfixExpression(operator string, left, right float64,
 		return &Float{Value: left * right}
 	case "/":
 		if right == 0 {
-			return newError(line, "pembagian dengan nol")
+			return newErrorTok(tok, "pembagian dengan nol")
 		}
 		return &Float{Value: left / right}
 	case "<":
@@ -1186,11 +1431,11 @@ func (r *Runtime) evalFloatInfixExpression(operator string, left, right float64,
 	case ">=":
 		return nativeBoolToBooleanObject(left >= right)
 	default:
-		return newError(line, "operator '%s' tidak dikenal untuk angka desimal", operator)
+		return newErrorTok(tok, "operator '%s' tidak dikenal untuk angka desimal", operator)
 	}
 }
 
-func (r *Runtime) evalStringInfixExpression(operator string, left, right string, line int) Object {
+func (r *Runtime) evalStringInfixExpression(operator string, left, right string, tok token.Token) Object {
 	switch operator {
 	case "+":
 		return &String{Value: left + right}
@@ -1203,18 +1448,18 @@ func (r *Runtime) evalStringInfixExpression(operator string, left, right string,
 	case ">=":
 		return nativeBoolToBooleanObject(left >= right)
 	default:
-		return newError(line, "teks tidak mendukung operator '%s'", operator)
+		return newErrorTok(tok, "teks tidak mendukung operator '%s'", operator)
 	}
 }
 
-func (r *Runtime) evalBooleanInfixExpression(operator string, left, right bool, line int) Object {
+func (r *Runtime) evalBooleanInfixExpression(operator string, left, right bool, tok token.Token) Object {
 	switch operator {
 	case "dan":
 		return nativeBoolToBooleanObject(left && right)
 	case "atau":
 		return nativeBoolToBooleanObject(left || right)
 	default:
-		return newError(line, "logika tidak mendukung operator '%s'", operator)
+		return newErrorTok(tok, "logika tidak mendukung operator '%s'", operator)
 	}
 }
 
@@ -1254,6 +1499,9 @@ func objectsEqual(a, b Object) bool {
 			}
 		}
 		return true
+	case *GalatValue:
+		bv := b.(*GalatValue)
+		return av.Err.Message == bv.Err.Message && av.Err.Line == bv.Err.Line
 	case *Peta:
 		bv := b.(*Peta)
 		if av.Panjang() != bv.Panjang() {
@@ -1290,9 +1538,15 @@ func (r *Runtime) evalCallExpression(call *ast.CallExpression, env *Environment)
 
 	switch f := fn.(type) {
 	case *Builtin:
-		result := f.Fn(args...)
+		var result Object
+		if f.Konteks != nil {
+			// Builtin yang butuh akses ke runtime, misalnya kudiag.
+			result = f.Konteks(r, args...)
+		} else {
+			result = f.Fn(args...)
+		}
 		if errObj, ok := result.(*Error); ok {
-			r.attachTrace(errObj, call.Token.Line)
+			r.attachTrace(errObj, call.Token)
 		}
 		return result
 	case *FunctionObject:
@@ -1302,35 +1556,60 @@ func (r *Runtime) evalCallExpression(call *ast.CallExpression, env *Environment)
 		}
 
 		if len(args) != len(f.Params) {
-			return newError(call.Token.Line, "fungsi '%s' membutuhkan %d parameter, tapi diberikan %d",
+			return newErrorTok(call.Token, "fungsi '%s' membutuhkan %d parameter, tapi diberikan %d",
 				name, len(f.Params), len(args))
+		}
+
+		// Anotasi tipe parameter diperiksa sebelum pemanggilan dijalankan
+		// agar galat menunjuk ke tempat argumen salah ditulis.
+		for i, param := range f.Params {
+			if param.TypeHint == "" {
+				continue
+			}
+			if !cocokTipe(param.TypeHint, args[i]) {
+				return newErrorTok(call.Token,
+					"argumen ke-%d fungsi '%s' harus bertipe %s, mendapat %s",
+					i+1, name, param.TypeHint, typeName(args[i]))
+			}
 		}
 
 		// Batas kedalaman mencegah tumpukan Go meluap pada rekursi tak
 		// berujung, yang jika terjadi membuat proses mati total.
 		if r.limits.MaxDepth > 0 && len(r.stack) >= r.limits.MaxDepth {
-			return newError(call.Token.Line, "kedalaman pemanggilan melebihi batas %d pada fungsi '%s'; periksa rekursi tanpa kondisi berhenti",
+			return newErrorTok(call.Token, "kedalaman pemanggilan melebihi batas %d pada fungsi '%s'; periksa rekursi tanpa kondisi berhenti",
 				r.limits.MaxDepth, name)
 		}
 
 		enclosed := NewEnclosedEnvironment(f.Env)
+		enclosed.returnType = f.ReturnType
+		enclosed.namaFungsi = name
 		for i, param := range f.Params {
-			enclosed.Set(param.Value, args[i])
+			enclosed.Set(param.Name.Value, args[i])
 		}
 
 		r.stack = append(r.stack, Frame{Name: name, Line: call.Token.Line})
 		result := r.eval(f.Body, enclosed)
 		if errObj, ok := result.(*Error); ok {
-			r.attachTrace(errObj, call.Token.Line)
+			r.attachTrace(errObj, call.Token)
 		}
 		r.stack = r.stack[:len(r.stack)-1]
 
 		if result != nil && result.Type() == RETURN_OBJ {
-			return result.(*ReturnValue).Value
+			result = result.(*ReturnValue).Value
 		}
+
+		// Pemeriksaan di sini hanya berlaku untuk fungsi yang selesai
+		// tanpa pernyataan 'kembali'; galat dari 'kembali' sudah membawa
+		// pesan yang lebih tepat.
+		if f.ReturnType != "" && !isError(result) && !cocokTipe(f.ReturnType, result) {
+			return newErrorTok(call.Token,
+				"fungsi '%s' harus mengembalikan nilai bertipe %s, mendapat %s",
+				name, f.ReturnType, typeName(result))
+		}
+
 		return result
 	default:
-		return newError(call.Token.Line, "'%s' bukan sebuah fungsi", call.Function.String())
+		return newErrorTok(call.Token, "'%s' bukan sebuah fungsi", call.Function.String())
 	}
 }
 
@@ -1342,7 +1621,7 @@ func (r *Runtime) resolveFunction(call *ast.CallExpression, env *Environment) (O
 		if builtin, found := r.builtins[ident.Value]; found {
 			return builtin, nil
 		}
-		return nil, newError(call.Token.Line, "fungsi '%s' tidak ditemukan", ident.Value)
+		return nil, newErrorTok(call.Token, "fungsi '%s' tidak ditemukan", ident.Value)
 	}
 
 	fn := r.eval(call.Function, env)
@@ -1395,6 +1674,37 @@ func newError(line int, format string, args ...interface{}) *Error {
 	return &Error{Message: fmt.Sprintf(format, args...), Line: line}
 }
 
+// newErrorTok membuat galat yang menunjuk posisi token secara presisi.
+func newErrorTok(tok token.Token, format string, args ...interface{}) *Error {
+	return &Error{Message: fmt.Sprintf(format, args...), Line: tok.Line, Column: tok.Column}
+}
+
+// attachPosition melengkapi galat dengan posisi node bila belum terisi.
+// Dipanggil pada tingkat pernyataan agar setiap galat punya titik yang bisa
+// ditunjuk pada cuplikan sumber.
+func attachPosition(err *Error, node ast.Node) {
+	if err == nil || err.Column != 0 {
+		return
+	}
+	tok := ast.TokenOf(node)
+	if tok.Line == 0 {
+		return
+	}
+	if err.Line == 0 {
+		err.Line = tok.Line
+	}
+	err.Column = tok.Column
+}
+
+// indexToken mengembalikan token tanda kurung siku dari target indeks agar
+// galat indeks menunjuk posisi yang tepat.
+func indexToken(target ast.Expression) token.Token {
+	if index, ok := target.(*ast.IndexExpression); ok {
+		return index.Token
+	}
+	return token.Token{}
+}
+
 // snapshot menyalin jejak pemanggilan dengan urutan terdalam lebih dulu.
 func snapshot(stack []Frame) []Frame {
 	if len(stack) == 0 {
@@ -1409,9 +1719,10 @@ func snapshot(stack []Frame) []Frame {
 
 // attachTrace melengkapi galat dengan nomor baris dan jejak pemanggilan bila
 // belum diisi oleh pembuat galat asli.
-func (r *Runtime) attachTrace(err *Error, line int) {
+func (r *Runtime) attachTrace(err *Error, tok token.Token) {
 	if err.Line == 0 {
-		err.Line = line
+		err.Line = tok.Line
+		err.Column = tok.Column
 	}
 	if len(err.Trace) == 0 {
 		err.Trace = snapshot(r.stack)
@@ -1437,6 +1748,8 @@ func typeName(obj Object) string {
 		return "daftar"
 	case PETA_OBJ:
 		return "peta"
+	case GALAT_OBJ:
+		return "galat"
 	case FUNCTION_OBJ, BUILTIN_OBJ:
 		return "fungsi"
 	case ERROR_OBJ:
@@ -1468,6 +1781,49 @@ func isTruthy(obj Object) bool {
 func isError(obj Object) bool {
 	if obj != nil {
 		return obj.Type() == ERROR_OBJ
+	}
+	return false
+}
+
+// cocokTipe memeriksa apakah nilai sebuah objek sesuai dengan anotasi tipe.
+// Anotasi 'apa_saja' menerima semua nilai, dan nilai kosong (tanpa
+// kembalian) cocok dengan tipe 'kosong'.
+func cocokTipe(hint string, obj Object) bool {
+	if hint == "" || hint == tipe.ApaSaja {
+		return true
+	}
+	if obj == nil {
+		return hint == tipe.Kosong
+	}
+
+	switch hint {
+	case tipe.Angka:
+		_, ok := obj.(*Integer)
+		return ok
+	case tipe.Desimal:
+		_, ok := obj.(*Float)
+		return ok
+	case tipe.Teks:
+		_, ok := obj.(*String)
+		return ok
+	case tipe.Logika:
+		_, ok := obj.(*Boolean)
+		return ok
+	case tipe.Kosong:
+		_, ok := obj.(*Nil)
+		return ok
+	case tipe.Daftar:
+		_, ok := obj.(*List)
+		return ok
+	case tipe.Peta:
+		_, ok := obj.(*Peta)
+		return ok
+	case tipe.Fungsi:
+		switch obj.(type) {
+		case *FunctionObject, *Builtin:
+			return true
+		}
+		return false
 	}
 	return false
 }
