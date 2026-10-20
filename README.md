@@ -158,6 +158,14 @@ nusa uji                       # cari berkas *_uji.nusa / *_test.nusa
 `nusa cek` melaporkan temuan sebagai galat atau peringatan. Galat membuat exit
 code `1`, peringatan saja tetap exit code `0`.
 
+## Pengembangan Web
+
+Nusa sudah bisa menulis markup, serialisasi JSON, dan menangani error
+per-request, tetapi belum punya operasi berkas maupun jaringan. Untuk memakai
+Nusa dalam web, pola yang paling masuk akal saat ini adalah Go sebagai host
+HTTP dan `.nusa` sebagai bahasa render. Hasil audit lengkap, termasuk daftar
+gap bahasa yang harus ditutup, ada di [docs/web.md](docs/web.md).
+
 ## Struktur Proyek
 
 ```
@@ -172,7 +180,7 @@ internal/cek/        Pemeriksa statis (tipe dan variabel)
 internal/format/     Pemformat kode berbasis token
 internal/modul/      Pemuat modul .nusa
 examples/            Program contoh .nusa
-docs/                Dokumentasi bahasa dan kebijakan rilis
+docs/                Dokumentasi bahasa, kesiapan web, dan kebijakan rilis
 .github/             Workflow CI dan konfigurasi catatan rilis
 ```
 
