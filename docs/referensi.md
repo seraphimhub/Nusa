@@ -1,21 +1,28 @@
 # Referensi Bahasa Nusa
 
-Dokumen ini merangkum seluruh sintaks dan perilaku bahasa Nusa versi 1.1.0.
+Dokumen ini merangkum seluruh sintaks dan perilaku bahasa Nusa versi 1.2.0.
 
 ## Daftar Isi
 
 1. [Komentar](#komentar)
 2. [Variabel](#variabel)
-3. [Tipe Data](#tipe-data)
-4. [Operator](#operator)
-5. [Percabangan](#percabangan)
-6. [Perulangan](#perulangan)
-7. [Pernyataan Pilih](#pernyataan-pilih)
-8. [Fungsi](#fungsi)
-9. [Daftar](#daftar)
-10. [Input](#input)
-11. [Fungsi Bawaan](#fungsi-bawaan)
-12. [Pesan Galat](#pesan-galat)
+3. [Konstanta](#konstanta)
+4. [Tipe Data](#tipe-data)
+5. [Anotasi Tipe](#anotasi-tipe)
+6. [Operator](#operator)
+7. [Percabangan](#percabangan)
+8. [Perulangan](#perulangan)
+9. [Pernyataan Pilih](#pernyataan-pilih)
+10. [Penanganan Galat](#penanganan-galat)
+11. [Fungsi](#fungsi)
+12. [Daftar](#daftar)
+13. [Peta](#peta)
+14. [Modul](#modul)
+15. [Input](#input)
+16. [Fungsi Bawaan](#fungsi-bawaan)
+17. [Pengujian](#pengujian)
+18. [Perintah CLI](#perintah-cli)
+19. [Pesan Galat](#pesan-galat)
 
 ## Komentar
 
@@ -43,6 +50,23 @@ umur *= 2      # 54
 - Blok `{ ... }` (if/loop) **tidak** membuat scope baru; hanya pemanggilan
   fungsi yang membuat scope baru.
 
+## Konstanta
+
+`tetap` mendeklarasikan konstanta. Nilai konstanta tidak boleh diubah
+setelah dideklarasikan.
+
+```nusa
+tetap PI = 3.14
+tetap VERSI = "1.2.0"
+
+tulis PI * 2
+```
+
+- Penugasan, penugasan gabungan, dan deklarasi ulang pada scope yang sama
+  ditolak dengan pesan galat yang jelas.
+- Konstanta boleh "dibayangi" (shadowing) oleh deklarasi lokal di dalam
+  fungsi, dan nilai konstanta tersedia di lingkup dalam fungsi tersebut.
+
 ## Tipe Data
 
 | Tipe | Contoh | Keterangan |
@@ -53,6 +77,7 @@ umur *= 2      # 54
 | `logika` | `benar`, `salah` | Boolean |
 | `kosong` | `kosong` | Nilai kosong |
 | `daftar` | `[1, "dua", benar]` | Daftar dinamis (mutable) |
+| `peta` | `peta { "a": 1 }` | Peta kunci-nilai (mutable) |
 | `fungsi` | `fungsi f() {}` | Fungsi atau fungsi bawaan |
 
 Escape string yang dikenali: `\n`, `\t`, `\r`, `\\`, `\"`, `\'`, dan `\0`.
@@ -60,6 +85,36 @@ Escape string yang dikenali: `\n`, `\t`, `\r`, `\\`, `\"`, `\'`, dan `\0`.
 ```nusa
 tulis "baris pertama\nbaris kedua\tberakhir"
 tulis 'teks dengan "kutip ganda"'
+```
+
+## Anotasi Tipe
+
+Anotasi tipe bersifat opsional. Bila ditulis, nilainya diperiksa saat
+program berjalan dan galat menunjuk ke baris yang salah.
+
+```nusa
+buat nama: teks = "Budi"
+buat umur: angka = 25
+
+fungsi luas_persegi(sisi: angka): angka {
+    kembali sisi * sisi
+}
+```
+
+- Anotasi variabel: `buat nama: tipe = nilai`.
+- Anotasi parameter: `fungsi f(x: tipe)`.
+- Anotasi nilai kembalian: `fungsi f(x): tipe`.
+- Tipe yang dikenal: `angka`, `desimal`, `teks`, `logika`, `kosong`, `daftar`,
+  `peta`, `fungsi`, dan `apa_saja`.
+- `apa_saja` menerima nilai bertipe apa pun.
+- Nilai yang tidak diberi anotasi tidak diperiksa, sehingga kode lama tetap
+  berjalan apa adanya.
+
+Galat anotasi tipe muncul dalam dua bentuk:
+
+```
+ERROR: baris 3: nilai untuk 'umur' harus bertipe angka, mendapat teks
+ERROR: baris 3: fungsi 'luas_persegi' harus mengembalikan nilai bertipe angka, mendapat teks
 ```
 
 ## Operator
@@ -183,6 +238,33 @@ fungsi namaBulan(bulan) {
 }
 ```
 
+## Penanganan Galat
+
+`coba` menjalankan blok kode dan `tangkap` menangani galat yang muncul di
+dalamnya. `lempar` membuat galat sendiri.
+
+```nusa
+fungsi bagi(a, b) {
+    jika b == 0 {
+        lemparkan "pembagian dengan nol"
+    }
+    kembali a / b
+}
+
+coba {
+    tulis bagi(10, 0)
+} tangkap galat {
+    tulis "tertangkap: " + galat["pesan"]
+    tulis "baris: " + galat["baris"]
+}
+```
+
+- `tangkap` tanpa nama galat tetap valid: `} tangkap { ... }`.
+- Nilai galat yang tertangkap adalah peta dengan kunci `pesan`, `baris`,
+  `tipe`, dan `jejak` (riwayat pemanggilan fungsi).
+- Galat yang tidak tertangkap menghentikan program dan dicetak CLI lengkap
+  dengan cuplikan sumber serta penanda kolom.
+
 ## Fungsi
 
 ```nusa
@@ -225,6 +307,64 @@ Catatan:
   `rentang` mengembalikan daftar baru.
 - Teks juga bisa diindeks dan menghasilkan satu karakter: `"nusa"[0]` → `"n"`.
 
+## Peta
+
+Peta menyimpan pasangan kunci-nilai. Kunci dapat berupa teks, angka, atau
+logika.
+
+```nusa
+buat pengguna = peta {
+    "nama": "Budi",
+    "umur": 25,
+}
+
+tulis pengguna["nama"]
+pengguna["umur"] = 26
+tulis pengguna["umur"]
+```
+
+- Peta dapat diiterasi dengan dua variabel, kunci lalu nilai:
+
+  ```nusa
+  untuk kunci, nilai dalam pengguna {
+      tulis kunci + " = " + nilai
+  }
+  ```
+
+- Peta yang dipakai dengan satu variabel diiterasi untuk menghasilkan kunci.
+- Mengambil kunci yang tidak ada menghasilkan galat. Gunakan `ada(peta, kunci)`
+  untuk mengecek atau `ambil(peta, kunci, bawaan)` untuk nilai cadangan.
+- Fungsi bawaan peta: `ada`, `kunci`, `nilai`, `ambil`. `panjang` menerima
+  peta dan menghasilkan jumlah pasangannya.
+
+## Modul
+
+Modul adalah berkas `.nusa` lain yang dimuat dengan `impor`.
+
+```nusa
+# util.nusa
+tetap VERSI = "1.0"
+
+fungsi sapa(nama) {
+    kembali "Halo, " + nama
+}
+```
+
+```nusa
+# utama.nusa
+impor "util.nusa"
+
+tulis sapa("Dunia")
+tulis VERSI
+```
+
+- Path modul diselesaikan relatif terhadap direktori berkas pemanggil.
+- Semua fungsi dan konstanta yang dideklarasikan di tingkat atas modul ikut
+  diekspor ke lingkup berkas pemanggil.
+- Modul yang sama hanya dieksekusi satu kali, dan impor melingkar ditolak
+  dengan pesan galat yang jelas.
+- Modul dapat mengimpor modul lain.
+
 ## Input
 
 ```nusa
@@ -239,8 +379,14 @@ yang disebutkan.
 
 | Fungsi | Argumen | Hasil |
 | --- | --- | --- |
-| `panjang(nilai)` | teks atau daftar | jumlah karakter (rune) atau elemen |
+| `panjang(nilai)` | teks, daftar, atau peta | jumlah karakter (rune), elemen, atau pasangan |
 | `tipe(nilai)` | semua tipe | nama tipe dalam bahasa Indonesia |
+| `pesan(galat)` | nilai galat | pesan galat sebagai teks |
+| `jejak(galat)` | nilai galat | daftar riwayat pemanggilan fungsi |
+| `ada(peta, kunci)` | peta, kunci | `benar` bila kunci ada |
+| `kunci(peta)` | peta | daftar seluruh kunci |
+| `nilai(peta)` | peta | daftar seluruh nilai |
+| `ambil(peta, kunci, bawaan)` | peta, kunci, semua tipe | nilai kunci atau nilai cadangan |
 | `ke_teks(nilai)` | semua tipe | representasi teks |
 | `ke_angka(nilai)` | angka, desimal, teks | `angka` (desimal dipotong, teks di-parse) |
 | `ke_desimal(nilai)` | angka, desimal, teks | `desimal` |
@@ -252,6 +398,7 @@ yang disebutkan.
 | `gabung(daftar[, pemisah])` | daftar, teks | teks gabungan |
 | `tambahkan(daftar, nilai)` | daftar, semua tipe | daftar setelah ditambah |
 | `hapus(daftar, indeks)` | daftar, angka | daftar setelah dihapus |
+| `hapus(peta, kunci)` | peta, kunci | peta tanpa kunci tersebut |
 | `urutkan(daftar)` | daftar angka/teks | daftar terurut (mengubah asli) |
 | `balik(daftar)` | daftar | daftar baru dengan urutan terbalik |
 | `jumlah(daftar)` | daftar angka | total, `angka` jika semua bulat |
@@ -262,9 +409,61 @@ yang disebutkan.
 | `lantai(x)` | angka | pembulatan ke bawah |
 | `langit(x)` | angka | pembulatan ke atas |
 | `mutlak(x)` | angka | nilai absolut |
+| `kudiag()` | — | ringkasan status runtime (langkah, kedalaman, variabel aktif) |
 
 Semua pemanggilan fungsi bawaan memeriksa jumlah dan tipe argumen serta
 menghasilkan galat yang jelas bila tidak sesuai.
+
+## Pengujian
+
+Bahasa Nusa menyediakan blok `uji` berisi pemeriksaan `cek` untuk menulis
+test langsung di dalam berkas sumber.
+
+```nusa
+fungsi tambah(a, b) {
+    kembali a + b
+}
+
+uji "penjumlahan" {
+    cek tambah(1, 2) == 3
+    cek tambah(0, 0) == 0
+}
+
+uji "penanganan galat" {
+    coba {
+        tambah(1, "a")
+        cek salah, "harus gagal"
+    } tangkap galat {
+        cek galat["pesan"] != ""
+    }
+}
+```
+
+- `cek ekspresi` gagal bila ekspresi bernilai `salah` atau `kosong`.
+- `cek ekspresi, "pesan"` gagal dengan pesan kustom bila ekspresi bernilai
+  `salah` atau `kosong`.
+- Setiap blok `uji` boleh berisi banyak `cek`. Bila satu `cek` gagal, blok
+  tersebut dicatat sebagai gagal dan pemeriksaan berikutnya tetap berjalan.
+- Perintah `nusa uji <file.nusa>` menjalankan seluruh blok `uji` pada berkas
+  tersebut dan menampilkan ringkasan. Exit code `1` bila ada blok gagal.
+
+## Perintah CLI
+
+| Perintah | Kegunaan |
+| --- | --- |
+| `nusa run <file>` | Menjalankan berkas `.nusa` |
+| `nusa <file>` | Singkatan dari `nusa run <file>` |
+| `nusa repl` | Mode interaktif |
+| `nusa cek <file ...>` | Pemeriksaan statis: tipe, variabel tak terdefinisi, variabel tak terpakai |
+| `nusa fmt <file ...>` | Memformat kode dan menjaga komentar |
+| `nusa uji <file ...>` | Menjalankan blok `uji` pada berkas |
+| `nusa ast <file>` | Menampilkan pohon sintaks |
+| `nusa token <file>` | Menampilkan daftar token |
+| `nusa version` | Menampilkan versi |
+| `nusa help` | Menampilkan bantuan |
+
+`nusa cek` melaporkan temuan berupa galat dan peringatan. Galat membuat exit
+code `1`, sedangkan peringatan saja tetap exit code `0`.
 
 ## Pesan Galat
 
@@ -279,6 +478,15 @@ Galat leksikal dan parsing ditampilkan terpisah, misalnya:
 ```
 Error parsing:
    baris 2: tidak diduga '=', mengharapkan 'IDENT'
+```
+
+CLI menampilkan cuplikan sumber di sekitar baris galat beserta penanda kolom:
+
+```
+ERROR: baris 3: pembagian dengan nol
+2 |     tulis a / b
+3 |     tulis bagi(10, 0)
+  |              ^
 ```
 
 Perintah `nusa run` mengembalikan exit code `0` bila program berhasil dan `1`
