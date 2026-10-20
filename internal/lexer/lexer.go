@@ -218,6 +218,8 @@ func (l *Lexer) NextToken() token.Token {
 		tok = makeToken(token.COMMA, ",")
 	case ':':
 		tok = makeToken(token.TITIK_DUA, ":")
+	case '.':
+		tok = makeToken(token.TITIK, ".")
 	case '"', '\'':
 		quote := l.ch
 		lit := l.readString(quote)
