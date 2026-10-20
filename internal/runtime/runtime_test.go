@@ -48,6 +48,151 @@ func executeWithLimits(t *testing.T, source string, limits runtime.Limits) (stri
 	return out.String(), result
 }
 
+func TestCobaTangkap(t *testing.T) {
+	expectOutput(t, `
+fungsi bagi(a, b) {
+    jika b == 0 {
+        lemparkan "pembagian dengan nol"
+    }
+    kembali a / b
+}
+
+coba {
+    tulis bagi(10, 0)
+} tangkap g {
+    tulis "tertangkap: " + g["pesan"]
+    tulis "baris: " + g["baris"]
+    tulis "tipe: " + tipe(g)
+    tulis "jejak: " + g["jejak"]
+}
+
+tulis bagi(10, 2)
+`, "tertangkap: pembagian dengan nol\nbaris: 4\ntipe: galat\njejak: [\"bagi (baris 10)\"]\n5")
+}
+
+func TestCobaTanpaGalatDanTanpaNama(t *testing.T) {
+	expectOutput(t, `
+coba {
+    tulis "aman"
+} tangkap {
+    tulis "tidak akan tercetak"
+}
+
+coba {
+    buat x = 1 / 0
+} tangkap {
+    tulis "tertangkap tanpa nama"
+}
+`, "aman\ntertangkap tanpa nama")
+}
+
+func TestLemparkanNilai(t *testing.T) {
+	expectOutput(t, `
+coba {
+    lemparkan 42
+} tangkap g {
+    tulis "pesan: " + pesan(g)
+}
+
+coba {
+    lemparkan "teks galat"
+} tangkap g {
+    tulis pesan(g)
+}
+`, "pesan: 42\nteks galat")
+}
+
+func TestLemparkanUlang(t *testing.T) {
+	expectOutput(t, `
+coba {
+    coba {
+        lemparkan "dari dalam"
+    } tangkap g {
+        lemparkan g
+    }
+} tangkap h {
+    tulis "luar: " + pesan(h)
+}
+`, "luar: dari dalam")
+}
+
+func TestCobaMeneruskanKendaliPerulangan(t *testing.T) {
+	expectOutput(t, `
+buat hasil = ""
+untuk i dari 1 sampai 4 {
+    coba {
+        jika i == 2 {
+            lanjutkan
+        }
+        jika i == 4 {
+            berhenti
+        }
+        hasil += ke_teks(i)
+    } tangkap g {
+        hasil += "x"
+    }
+}
+tulis hasil
+`, "13")
+}
+
+func TestGalatTidakTertangkapTetapMenghentikanProgram(t *testing.T) {
+	_, result := execute(t, `
+fungsi gagal() {
+    lemparkan "berhenti di sini"
+}
+
+coba {
+    gagal()
+} tangkap g {
+    tulis "tertangkap"
+}
+
+buat x = 1 / 0
+`)
+	if result == nil || result.Type() != runtime.ERROR_OBJ {
+		t.Fatalf("ingin galat runtime, dapat %#v", result)
+	}
+	if !strings.Contains(result.Inspect(), "pembagian dengan nol") {
+		t.Errorf("galat = %q", result.Inspect())
+	}
+}
+
+func TestGalatBuiltinTertangkap(t *testing.T) {
+	expectOutput(t, `
+coba {
+    tulis panjang(123)
+} tangkap g {
+    tulis "pesan: " + pesan(g)
+    tulis "jejak kosong: " + panjang(jejak(g))
+}
+`, "pesan: panjang() hanya menerima teks, daftar, atau peta; mendapat angka\njejak kosong: 0")
+}
+
+func TestGalatPesanDanJejakSalahTipe(t *testing.T) {
+	tests := []struct {
+		name   string
+		source string
+		want   string
+	}{
+		{"pesan bukan galat", `tulis pesan(1)`, "membutuhkan objek galat"},
+		{"kunci galat tidak dikenal", "coba { lemparkan \"x\" } tangkap g { tulis g[\"salah\"] }", "kunci galat"},
+		{"indeks galat bukan teks", "coba { lemparkan \"x\" } tangkap g { tulis g[0] }", "hanya bisa diindeks dengan teks"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, result := execute(t, test.source)
+			if result == nil || result.Type() != runtime.ERROR_OBJ {
+				t.Fatalf("ingin galat runtime, dapat %#v", result)
+			}
+			if !strings.Contains(result.Inspect(), test.want) {
+				t.Errorf("galat = %q, ingin mengandung %q", result.Inspect(), test.want)
+			}
+		})
+	}
+}
+
 func TestPetaDasar(t *testing.T) {
 	expectOutput(t, `
 buat data = peta { "nama": "Budi", "umur": 17 }
@@ -561,4 +706,67 @@ tulis f()`, "membutuhkan 1 parameter"},
 			}
 		})
 	}
+}
+
+func TestAnotasiTipeDiterima(t *testing.T) {
+	expectOutput(t, `
+ buat nama: teks = "Budi"
+ buat umur: angka = 25
+ tetap PI: desimal = 3.14
+ buat daftar_nama: daftar = ["a"]
+ buat data: peta = peta { "x": 1 }
+ buat bebas: apa_saja = 42
+
+ fungsi sapa(nama: teks, umur: angka): teks {
+     kembali "Halo " + nama
+ }
+
+ tulis sapa(nama, umur)
+ tulis tipe(daftar_nama) + " " + tipe(data) + " " + tipe(bebas)
+`, "Halo Budi\ndaftar peta angka")
+}
+
+func TestAnotasiTipeDitolak(t *testing.T) {
+	tests := []struct {
+		name   string
+		source string
+		want   string
+	}{
+		{
+			"nilai variabel",
+			`buat umur: angka = "teks"`,
+			"nilai untuk 'umur' harus bertipe angka, mendapat teks",
+		},
+		{
+			"argumen fungsi",
+			"fungsi tambah(a: angka): angka { kembali a }\ntulis tambah(\"x\")",
+			"argumen ke-1 fungsi 'tambah' harus bertipe angka, mendapat teks",
+		},
+		{
+			"nilai kembalian",
+			"fungsi balik(x: angka): teks { kembali x }\ntulis balik(5)",
+			"fungsi 'balik' harus mengembalikan nilai bertipe teks, mendapat angka",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, result := execute(t, test.source)
+			if result == nil || result.Type() != runtime.ERROR_OBJ {
+				t.Fatalf("ingin galat runtime, dapat %#v", result)
+			}
+			if !strings.Contains(result.Inspect(), test.want) {
+				t.Errorf("galat = %q, ingin mengandung %q", result.Inspect(), test.want)
+			}
+		})
+	}
+}
+
+func TestAnotasiTipeKosongDanFungsi(t *testing.T) {
+	expectOutput(t, `
+ buat nilai_kosong: kosong = kosong
+ fungsi tanpa_nilai() { }
+ buat f: fungsi = tanpa_nilai
+ tulis tipe(nilai_kosong) + " " + tipe(f)
+`, "kosong fungsi")
 }

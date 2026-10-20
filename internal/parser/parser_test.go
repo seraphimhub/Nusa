@@ -218,12 +218,61 @@ untuk k, v dalam peta { "a": 1 } {
 	}
 }
 
+func TestParseCobaTangkap(t *testing.T) {
+	program := mustParse(t, `
+coba {
+    tulis 1 / 0
+} tangkap e {
+    tulis e["pesan"]
+}
+
+coba {
+    tulis "aman"
+} tangkap {
+    tulis "galat"
+}
+`)
+
+	pertama, ok := program.Statements[0].(*ast.CobaStatement)
+	if !ok {
+		t.Fatalf("statement 0 bukan CobaStatement: %T", program.Statements[0])
+	}
+	if pertama.ErrName == nil || pertama.ErrName.Value != "e" {
+		t.Errorf("nama galat = %#v, ingin e", pertama.ErrName)
+	}
+	if len(pertama.Try.Statements) != 1 || len(pertama.Catch.Statements) != 1 {
+		t.Errorf("jumlah statement coba=%d tangkap=%d", len(pertama.Try.Statements), len(pertama.Catch.Statements))
+	}
+
+	kedua := program.Statements[1].(*ast.CobaStatement)
+	if kedua.ErrName != nil {
+		t.Errorf("tangkap tanpa nama seharusnya ErrName nil, dapat %#v", kedua.ErrName)
+	}
+}
+
+func TestParseLemparkan(t *testing.T) {
+	program := mustParse(t, `
+lemparkan "gagal"
+`)
+
+	lemparkan, ok := program.Statements[0].(*ast.LemparkanStatement)
+	if !ok {
+		t.Fatalf("bukan LemparkanStatement: %T", program.Statements[0])
+	}
+	if lemparkan.Value.String() != `"gagal"` {
+		t.Errorf("nilai = %q", lemparkan.Value.String())
+	}
+}
+
 func TestParseGalatBentukBaru(t *testing.T) {
 	tests := []string{
 		`peta "a": 1 }`,
 		`peta { "a" 1 }`,
 		`untuk i, j dari 1 sampai 3 { tulis i }`,
 		`untuk i, dalam [1] { tulis i }`,
+		`coba { tulis 1 }`,
+		`coba { tulis 1 } tangkap 1 { tulis 2 }`,
+		`coba x { tulis 1 } tangkap { tulis 2 }`,
 	}
 
 	for _, input := range tests {
@@ -373,5 +422,71 @@ func TestParseErrors(t *testing.T) {
 				t.Fatalf("ingin galat parser, program: %#v", program)
 			}
 		})
+	}
+}
+
+func TestParseAnotasiTipe(t *testing.T) {
+	program := mustParse(t, `
+buat nama: teks = "Budi"
+tetap PI: desimal = 3.14
+`)
+
+	pertama := program.Statements[0].(*ast.LetStatement)
+	if pertama.TypeHint != "teks" {
+		t.Errorf("type hint = %q, ingin teks", pertama.TypeHint)
+	}
+	if kedua := program.Statements[1].(*ast.LetStatement); kedua.TypeHint != "desimal" || !kedua.Konst {
+		t.Errorf("konstanta = %#v", kedua)
+	}
+}
+
+func TestParseAnotasiTipeFungsi(t *testing.T) {
+	program := mustParse(t, `
+fungsi sapa(nama: teks, umur: angka): teks {
+    kembali nama
+}
+`)
+
+	fn := program.Statements[0].(*ast.FunctionStatement)
+	if fn.ReturnType != "teks" {
+		t.Errorf("tipe kembalian = %q, ingin teks", fn.ReturnType)
+	}
+	if len(fn.Params) != 2 {
+		t.Fatalf("jumlah parameter = %d", len(fn.Params))
+	}
+	if fn.Params[0].TypeHint != "teks" || fn.Params[1].TypeHint != "angka" {
+		t.Errorf("tipe parameter = %q, %q", fn.Params[0].TypeHint, fn.Params[1].TypeHint)
+	}
+}
+
+func TestParseTipeTidakDikenal(t *testing.T) {
+	for _, input := range []string{
+		"buat x: tidak_ada = 1",
+		"fungsi f(a: apa_ada) { kembali a }",
+		"fungsi f(): tidak_ada { kembali 1 }",
+	} {
+		t.Run(input, func(t *testing.T) {
+			_, errors := parseProgram(t, input)
+			if len(errors) == 0 {
+				t.Fatalf("ingin galat tipe tidak dikenal")
+			}
+		})
+	}
+}
+
+func TestParsePemulihanGalatTidakMenelanPernyataanBerikutnya(t *testing.T) {
+	program, errors := parseProgram(t, `
+buat 1 = 2
+tulis "masih terbaca"
+`)
+
+	if len(errors) == 0 {
+		t.Fatalf("ingin galat parser")
+	}
+	if len(program.Statements) != 1 {
+		t.Fatalf("jumlah pernyataan = %d, ingin 1", len(program.Statements))
+	}
+	if _, ok := program.Statements[0].(*ast.PrintStatement); !ok {
+		t.Errorf("pernyataan bukan PrintStatement: %T", program.Statements[0])
 	}
 }
