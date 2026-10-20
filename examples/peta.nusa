@@ -1,0 +1,65 @@
+# Nusa - Tipe Peta (peta)
+# =========================
+
+# Peta menyimpan pasangan kunci-nilai. Kunci boleh berupa teks, angka,
+# desimal, logika, atau kosong.
+
+buat pengguna = peta {
+    "nama": "Budi",
+    "umur": 25,
+    "kota": "Jakarta"
+}
+
+tulis "=== AKSES PETA ==="
+tulis "nama: " + pengguna["nama"]
+tulis "umur: " + pengguna["umur"]
+tulis "kota: " + pengguna["kota"]
+
+tulis ""
+tulis "=== KEADAAN PETA ==="
+tulis "jumlah entri: " + panjang(pengguna)
+tulis "ada kunci 'nama': " + ke_teks(ada(pengguna, "nama"))
+tulis "ada kunci 'gaji': " + ke_teks(ada(pengguna, "gaji"))
+
+# Kunci yang tidak ada menghasilkan galat runtime.
+coba {
+    tulis pengguna["gaji"]
+} tangkap galat {
+    tulis "galat: " + galat["pesan"]
+}
+
+# ambil() menyediakan nilai bawaan bila kunci tidak ditemukan.
+tulis "gaji (bawaan): " + ambil(pengguna, "gaji", 0)
+
+tulis ""
+tulis "=== UBAH PETA ==="
+pengguna["kota"] = "Bandung"
+pengguna["gaji"] = 5000000
+tulis pengguna["kota"]
+tulis "gaji: " + pengguna["gaji"]
+
+tulis ""
+tulis "=== ITERASI PETA ==="
+untuk nama_kunci, isi dalam pengguna {
+    tulis nama_kunci + " = " + isi
+}
+
+tulis ""
+tulis "=== DAFTAR KUNCI DAN NILAI ==="
+tulis "kunci: " + kunci(pengguna)
+tulis "nilai: " + nilai(pengguna)
+
+tulis ""
+tulis "=== PETA DALAM PETA ==="
+buat tim = peta {
+    "nama": "Tim Nusa",
+    "anggota": [
+        peta { "nama": "Budi" },
+        peta { "nama": "Sari" }
+    ]
+}
+tulis "tim: " + tim["nama"]
+tulis "jumlah anggota: " + panjang(tim["anggota"])
+untuk anggota dalam tim["anggota"] {
+    tulis "  - " + anggota["nama"]
+}

@@ -1,0 +1,38 @@
+# Nusa - Penolakan Tipe yang Salah
+# ================================
+#
+# Berkas ini sengaja memuat kesalahan tipe sehingga `nusa cek` melaporkan
+# temuannya. Jalankan dengan:
+#   nusa run examples/galat_tipe.nusa
+
+fungsi luas_persegi(sisi: angka): angka {
+    kembali sisi * sisi
+}
+
+tulis "=== PENOLAKAN TIPE ==="
+
+# Nilai yang salah tipe ditolak saat deklarasi.
+coba {
+    buat angka_teks: angka = "bukan angka"
+    tulis angka_teks
+} tangkap galat {
+    tulis "galat deklarasi: " + galat["pesan"]
+}
+
+# Argumen yang salah tipe ditolak saat pemanggilan.
+coba {
+    luas_persegi("lima")
+} tangkap galat {
+    tulis "galat argumen: " + galat["pesan"]
+}
+
+# Nilai kembalian yang salah tipe ditolak saat fungsi dipanggil.
+fungsi salah_kembali(): teks {
+    kembali 42
+}
+
+coba {
+    salah_kembali()
+} tangkap galat {
+    tulis "galat kembalian: " + galat["pesan"]
+}

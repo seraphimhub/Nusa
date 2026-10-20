@@ -1,0 +1,49 @@
+# Nusa - Contoh penulisan uji
+# ===========================
+#
+# Jalankan dengan:
+#   nusa uji examples/matematika_uji.nusa
+
+fungsi tambah(a, b) {
+    kembali a + b
+}
+
+fungsi bagi(a, b) {
+    jika b == 0 {
+        lemparkan "pembagian dengan nol"
+    }
+    kembali a / b
+}
+
+fungsi luas_persegi(sisi: angka): angka {
+    kembali sisi * sisi
+}
+
+uji "penjumlahan" {
+    cek tambah(1, 2) == 3
+    cek tambah(0, 0) == 0
+    cek tambah(-1, 1) == 0
+}
+
+uji "pembagian" {
+    cek bagi(10, 2) == 5
+    cek bagi(9, 3) == 3
+}
+
+uji "penanganan galat" {
+    coba {
+        bagi(1, 0)
+        cek salah, "pembagian dengan nol seharusnya melempar galat"
+    } tangkap galat {
+        cek galat["pesan"] == "pembagian dengan nol"
+    }
+}
+
+uji "anotasi tipe" {
+    cek luas_persegi(4) == 16
+}
+
+uji "daftar dan peta" {
+    cek panjang([1, 2, 3]) == 3
+    cek peta { "a": 1 }["a"] == 1
+}

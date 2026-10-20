@@ -1,0 +1,52 @@
+# Nusa - Anotasi Tipe
+# =====================
+
+# Anotasi tipe bersifat opsional. Bila ditulis, nilainya diperiksa saat
+# program berjalan dan galat menunjuk ke baris yang salah. Contoh penolakan
+# tipe ada di examples/galat_tipe.nusa.
+
+buat nama: teks = "Budi"
+buat umur: angka = 25
+buat tinggi: desimal = 175.5
+buat aktif: logika = benar
+buat nihil: kosong = kosong
+buat daftar_nama: daftar = ["Budi", "Sari"]
+buat profil: peta = peta { "kota": "Jakarta" }
+buat apa_saja: apa_saja = 42
+
+tulis "=== DEKLARASI BERTIPE ==="
+tulis nama + " berumur " + umur + " tahun"
+tulis "tinggi: " + tinggi
+tulis "aktif: " + aktif
+tulis "nihil: " + tipe(nihil)
+tulis "tipe daftar_nama: " + tipe(daftar_nama)
+tulis "tipe profil: " + tipe(profil)
+tulis "tipe apa_saja: " + tipe(apa_saja)
+
+tulis ""
+tulis "=== FUNGSI BERTIPE ==="
+
+fungsi luas_persegi(sisi: angka): angka {
+    kembali sisi * sisi
+}
+
+fungsi sapa(nama: teks, sapaan: teks): teks {
+    kembali sapaan + ", " + nama + "!"
+}
+
+fungsi kosongkan(): kosong {
+    kembali kosong
+}
+
+tulis "luas 5: " + luas_persegi(5)
+tulis sapa("Dunia", "Halo")
+tulis "kosong: " + tipe(kosongkan())
+
+tulis ""
+tulis "=== TIPE DINAMIS ==="
+
+# Nilai yang tidak diketik tetap boleh dipakai; anotasi hanya memeriksa
+# nilai yang diberi.
+buat angka = 7
+tulis "7 + 3 = " + (angka + 3)
+tulis "tipe hasil: " + tipe(angka + 3)

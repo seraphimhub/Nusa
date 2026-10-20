@@ -1,0 +1,70 @@
+# Nusa - Penanganan Galat (coba / tangkap / lemparkan)
+# =====================================================
+
+# Fungsi yang melempar galat sendiri ketika pembagian dengan nol.
+fungsi bagi(angka, pembagi) {
+    jika pembagi == 0 {
+        lemparkan "pembagian dengan nol tidak diperbolehkan"
+    }
+    kembali angka / pembagi
+}
+
+tulis "=== LEMPARKAN DAN TANGKAP ==="
+coba {
+    tulis "hasil: " + bagi(10, 2)
+} tangkap galat {
+    tulis "galat tertangkap: " + galat["pesan"]
+}
+
+coba {
+    tulis "hasil: " + bagi(10, 0)
+} tangkap galat {
+    tulis "galat tertangkap: " + galat["pesan"]
+}
+
+# Galat bawaan runtime juga bisa ditangkap.
+coba {
+    buat daftar = [1, 2, 3]
+    tulis daftar[10]
+} tangkap galat {
+    tulis "galat bawaan: " + galat["pesan"]
+}
+
+# Galat bisa dilempar ulang apa adanya.
+coba {
+    coba {
+        lemparkan "galat dalam"
+    } tangkap galat {
+        lemparkan galat
+    }
+} tangkap galat {
+    tulis "galat yang dilempar ulang: " + galat["pesan"]
+}
+
+tulis ""
+tulis "=== JEJAK PANGGILAN ==="
+
+fungsi tingkatTiga() {
+    lemparkan "galat dari tingkat tiga"
+}
+
+fungsi tingkatDua() {
+    tingkatTiga()
+}
+
+fungsi tingkatSatu() {
+    tingkatDua()
+}
+
+coba {
+    tingkatSatu()
+} tangkap galat {
+    tulis "pesan: " + galat["pesan"]
+    untuk bari dalam galat["jejak"] {
+        tulis "  " + bari
+    }
+}
+
+tulis ""
+tulis "=== DIAGNOSIS RUNTIME ==="
+tulis kudiag()

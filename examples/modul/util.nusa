@@ -1,0 +1,26 @@
+# Modul contoh - fungsi dan konstanta yang diekspor.
+#
+# Hanya fungsi dan konstanta (tetap) tingkat atas yang diekspor. Variabel
+# biasa tetap menjadi milik modul ini.
+
+tetap VERSI = "1.2"
+
+fungsi sapa(nama) {
+    kembali "Halo, " + nama + "!"
+}
+
+fungsi tambah(a, b) {
+    kembali a + b
+}
+
+fungsi rata_rata(daftar) {
+    jika panjang(daftar) == 0 {
+        kembali 0
+    }
+    kembali jumlah(daftar) / panjang(daftar)
+}
+
+# Fungsi ini tidak diekspor karena bukan fungsi tingkat atas.
+fungsi penghitung() {
+    kembali 1
+}

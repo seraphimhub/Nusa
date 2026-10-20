@@ -1,0 +1,11 @@
+# Contoh pemakaian modul.
+#
+# Jalankan dari direktori ini:
+#   nusa run contoh.nusa
+
+impor "util.nusa"
+
+tulis "versi modul: " + VERSI
+tulis sapa("Dunia")
+tulis "2 + 3 = " + tambah(2, 3)
+tulis "rata-rata [10, 20, 30] = " + rata_rata([10, 20, 30])
