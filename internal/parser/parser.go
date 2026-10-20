@@ -48,7 +48,7 @@ var precedences = map[token.TokenType]Precedence{
 	token.MODULO:   PRODUCT,
 	token.LPAREN:   CALL,
 	token.LBRACKET: INDEX,
-	token.TITIK: 9,
+	token.TITIK:    9,
 }
 
 type Parser struct {
@@ -995,8 +995,6 @@ func (p *Parser) parseIndexExpression(left ast.Expression) ast.Expression {
 
 	return expr
 }
-
-
 
 // parsePropertyExpression menghilangkan properti objek, misalnya obj.nama.
 func (p *Parser) parsePropertyExpression(left ast.Expression) ast.Expression {
