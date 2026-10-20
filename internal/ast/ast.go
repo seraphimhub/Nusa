@@ -3,6 +3,7 @@ package ast
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/seraphimhub/Nusa/internal/token"
@@ -20,6 +21,84 @@ type Statement interface {
 	statementNode()
 }
 
+// TokenOf mengembalikan token utama sebuah node. Token ini dipakai runtime
+// dan perkakas untuk menunjuk posisi galat dengan nomor baris dan kolom.
+// Node yang tidak punya token sendiri (misalnya Program) mengembalikan token
+// kosong.
+func TokenOf(node Node) token.Token {
+	switch n := node.(type) {
+	case *LetStatement:
+		return n.Token
+	case *PrintStatement:
+		return n.Token
+	case *InputStatement:
+		return n.Token
+	case *ExpressionStatement:
+		return n.Token
+	case *BlockStatement:
+		return n.Token
+	case *IfStatement:
+		return n.Token
+	case *ForStatement:
+		return n.Token
+	case *WhileStatement:
+		return n.Token
+	case *FunctionStatement:
+		return n.Token
+	case *CallStatement:
+		return n.Token
+	case *ReturnStatement:
+		return n.Token
+	case *BreakStatement:
+		return n.Token
+	case *ContinueStatement:
+		return n.Token
+	case *Identifier:
+		return n.Token
+	case *IntegerLiteral:
+		return n.Token
+	case *FloatLiteral:
+		return n.Token
+	case *StringLiteral:
+		return n.Token
+	case *BooleanLiteral:
+		return n.Token
+	case *NilLiteral:
+		return n.Token
+	case *PrefixExpression:
+		return n.Token
+	case *InfixExpression:
+		return n.Token
+	case *CallExpression:
+		return n.Token
+	case *ListLiteral:
+		return n.Token
+	case *IndexExpression:
+		return n.Token
+	case *PetaLiteral:
+		return n.Token
+	case *AssignExpression:
+		return n.Token
+	case *UntukStatement:
+		return n.Token
+	case *CobaStatement:
+		return n.Token
+	case *LemparkanStatement:
+		return n.Token
+	case *PilihStatement:
+		return n.Token
+	case *UntukDalamStatement:
+		return n.Token
+	case *ImporStatement:
+		return n.Token
+	case *UjiStatement:
+		return n.Token
+	case *CekStatement:
+		return n.Token
+	}
+	return token.Token{}
+}
+
 // Expression is a node that produces a value.
 type Expression interface {
 	Node
@@ -32,8 +111,10 @@ type Program struct {
 }
 
 func (p *Program) TokenLiteral() string {
-	if len(p.Statements) > 0 {
-		return p.Statements[0].TokenLiteral()
+	for _, s := range p.Statements {
+		if s != nil {
+			return s.TokenLiteral()
+		}
 	}
 	return ""
 }
@@ -41,6 +122,9 @@ func (p *Program) TokenLiteral() string {
 func (p *Program) String() string {
 	var out bytes.Buffer
 	for _, s := range p.Statements {
+		if s == nil {
+			continue
+		}
 		out.WriteString(s.String())
 		out.WriteString("\n")
 	}
@@ -54,6 +138,9 @@ type LetStatement struct {
 	Name  *Identifier
 	Value Expression
 	Konst bool // true bila dideklarasikan dengan 'tetap'
+	// TypeHint berisi nama tipe bila ditulis, misalnya "angka". Kosong
+	// bila deklarasi tanpa anotasi tipe.
+	TypeHint string
 }
 
 func (ls *LetStatement) statementNode()       {}
@@ -62,6 +149,9 @@ func (ls *LetStatement) String() string {
 	var out bytes.Buffer
 	out.WriteString(ls.TokenLiteral() + " ")
 	out.WriteString(ls.Name.String())
+	if ls.TypeHint != "" {
+		out.WriteString(": " + ls.TypeHint)
+	}
 	out.WriteString(" = ")
 	if ls.Value != nil {
 		out.WriteString(ls.Value.String())
@@ -120,6 +210,9 @@ func (bs *BlockStatement) TokenLiteral() string { return bs.Token.Literal }
 func (bs *BlockStatement) String() string {
 	var out bytes.Buffer
 	for _, s := range bs.Statements {
+		if s == nil {
+			continue
+		}
 		out.WriteString(s.String())
 		out.WriteString("\n")
 	}
@@ -186,8 +279,11 @@ func (ws *WhileStatement) String() string {
 type FunctionStatement struct {
 	Token  token.Token // token.FUNGSI
 	Name   *Identifier
-	Params []*Identifier
+	Params []*Param
 	Body   *BlockStatement
+	// ReturnType berisi nama tipe kembalian bila ditulis. Kosong bila
+	// fungsi tidak punya anotasi tipe kembalian.
+	ReturnType string
 }
 
 func (fs *FunctionStatement) statementNode()       {}
@@ -202,9 +298,26 @@ func (fs *FunctionStatement) String() string {
 		params = append(params, p.String())
 	}
 	out.WriteString(strings.Join(params, ", "))
-	out.WriteString(") ")
+	out.WriteString(")")
+	if fs.ReturnType != "" {
+		out.WriteString(": " + fs.ReturnType)
+	}
+	out.WriteString(" ")
 	out.WriteString(fs.Body.String())
 	return out.String()
+}
+
+// Param adalah satu parameter fungsi beserta anotasi tipenya bila ada.
+type Param struct {
+	Name     *Identifier
+	TypeHint string
+}
+
+func (p *Param) String() string {
+	if p.TypeHint == "" {
+		return p.Name.String()
+	}
+	return p.Name.String() + ": " + p.TypeHint
 }
 
 type CallStatement struct {
@@ -463,6 +576,85 @@ func (us *UntukStatement) String() string {
 	out.WriteString(" ")
 	out.WriteString(us.Body.String())
 	return out.String()
+}
+
+// CobaStatement: coba { ... } tangkap [nama] { ... }
+type CobaStatement struct {
+	Token   token.Token // token.COBA
+	Try     *BlockStatement
+	ErrName *Identifier // opsional, menerima objek galat
+	Catch   *BlockStatement
+}
+
+func (cs *CobaStatement) statementNode()       {}
+func (cs *CobaStatement) TokenLiteral() string { return cs.Token.Literal }
+func (cs *CobaStatement) String() string {
+	out := "coba " + cs.Try.String() + " tangkap"
+	if cs.ErrName != nil {
+		out += " " + cs.ErrName.String()
+	}
+	return out + " " + cs.Catch.String()
+}
+
+// LemparkanStatement: lemparkan nilai
+type LemparkanStatement struct {
+	Token token.Token // token.LEMPAR
+	Value Expression
+}
+
+// ImporStatement: impor "modul.nusa"
+//
+// Path adalah lokasi berkas modul relatif terhadap berkas pemanggil.
+type ImporStatement struct {
+	Token token.Token // token.IMPOR
+	Path  string
+}
+
+func (is *ImporStatement) statementNode()       {}
+func (is *ImporStatement) TokenLiteral() string { return is.Token.Literal }
+func (is *ImporStatement) String() string {
+	return "impor " + strconv.Quote(is.Path)
+}
+
+func (ls *LemparkanStatement) statementNode()       {}
+func (ls *LemparkanStatement) TokenLiteral() string { return ls.Token.Literal }
+func (ls *LemparkanStatement) String() string {
+	return "lemparkan " + ls.Value.String()
+}
+
+// UjiStatement: uji "nama tes" { ... }
+//
+// Tubuh berisi pernyataan cek yang dijalankan oleh penjalur uji.
+type UjiStatement struct {
+	Token token.Token // token.UJI
+	Nama  string
+	Tubuh *BlockStatement
+}
+
+func (us *UjiStatement) statementNode()       {}
+func (us *UjiStatement) TokenLiteral() string { return us.Token.Literal }
+func (us *UjiStatement) String() string {
+	return "uji " + strconv.Quote(us.Nama) + " " + us.Tubuh.String()
+}
+
+// CekStatement: cek ekspresi [, "pesan"]
+//
+// Pernyataan ini memeriksa bahwa ekspresi bernilai benar. Bila ada pesan
+// khusus, pesan itu dipakai sebagai penjelasan kegagalan.
+type CekStatement struct {
+	Token    token.Token // token.CEK
+	Ekspresi Expression
+	Pesan    string
+}
+
+func (cs *CekStatement) statementNode()       {}
+func (cs *CekStatement) TokenLiteral() string { return cs.Token.Literal }
+func (cs *CekStatement) String() string {
+	out := "cek " + cs.Ekspresi.String()
+	if cs.Pesan != "" {
+		out += ", " + strconv.Quote(cs.Pesan)
+	}
+	return out
 }
 
 // KasusBlok adalah satu cabang di dalam pernyataan pilih.
