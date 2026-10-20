@@ -84,6 +84,7 @@ const (
 	RBRACKET  TokenType = "RBRACKET"
 	COMMA     TokenType = "COMMA"
 	TITIK_DUA TokenType = "TITIK_DUA"
+	TITIK       TokenType = "TITIK"
 	NEWLINE   TokenType = "NEWLINE"
 
 	// KOMENTAR dipakai oleh pemformat kode yang harus menjaga komentar.
