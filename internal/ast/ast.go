@@ -513,6 +513,20 @@ func (ie *IndexExpression) String() string {
 	return "(" + ie.Left.String() + "[" + ie.Index.String() + "])"
 }
 
+// PropertyExpression: obj.nama
+
+type PropertyExpression struct {
+	Token token.Token
+	Left  Expression
+	Name  Expression
+}
+
+func (pe *PropertyExpression) expressionNode()      {}
+func (pe *PropertyExpression) TokenLiteral() string { return pe.Token.Literal }
+func (pe *PropertyExpression) String() string {
+	return "(" + pe.Left.String() + "." + pe.Name.String() + ")"
+}
+
 // PetaEntri adalah satu pasangan kunci-nilai pada literal peta.
 type PetaEntri struct {
 	Kunci Expression
