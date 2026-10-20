@@ -260,8 +260,10 @@ coba {
 ```
 
 - `tangkap` tanpa nama galat tetap valid: `} tangkap { ... }`.
-- Nilai galat yang tertangkap adalah peta dengan kunci `pesan`, `baris`,
-  `tipe`, dan `jejak` (riwayat pemanggilan fungsi).
+- Nilai galat yang tertangkap dapat diindeks dengan kunci `pesan` (teks),
+  `baris` (angka), dan `jejak` (daftar riwayat pemanggilan fungsi). Kunci
+  lain ditolak dengan pesan galat yang jelas.
+- Galat dapat dilempar ulang apa adanya dengan `lempar galat`.
 - Galat yang tidak tertangkap menghentikan program dan dicetak CLI lengkap
   dengan cuplikan sumber serta penanda kolom.
 
@@ -456,7 +458,7 @@ uji "penanganan galat" {
 | `nusa repl` | Mode interaktif |
 | `nusa cek <file ...>` | Pemeriksaan statis: tipe, variabel tak terdefinisi, variabel tak terpakai |
 | `nusa fmt <file ...>` | Memformat kode dan menjaga komentar |
-| `nusa uji <file ...>` | Menjalankan blok `uji` pada berkas |
+| `nusa uji [<file ...>]` | Menjalankan blok `uji` pada berkas |
 | `nusa ast <file>` | Menampilkan pohon sintaks |
 | `nusa token <file>` | Menampilkan daftar token |
 | `nusa version` | Menampilkan versi |
@@ -464,6 +466,24 @@ uji "penanganan galat" {
 
 `nusa cek` melaporkan temuan berupa galat dan peringatan. Galat membuat exit
 code `1`, sedangkan peringatan saja tetap exit code `0`.
+
+### Opsi nusa fmt
+
+| Opsi | Kegunaan |
+| --- | --- |
+| (tanpa opsi) | Hasil format dicetak ke layar |
+| `-w`, `--tulis` | Menyimpan hasil format ke berkas aslinya |
+| `--cek` | Hanya memeriksa; exit code `1` bila ada berkas yang belum rapi |
+| `-h`, `--help` | Menampilkan bantuan perintah |
+
+`nusa fmt` menerima berkas maupun direktori. Untuk direktori, seluruh berkas
+`.nusa` di dalamnya diproses. Opsi `--cek` dan `-w` tidak bisa dipakai
+bersamaan.
+
+### Penemuan berkas uji
+
+`nusa uji` tanpa argumen mencari berkas uji pada direktori sekarang. Pola
+nama yang dikenali adalah sufiks `_uji.nusa` dan `_test.nusa`.
 
 ## Pesan Galat
 
