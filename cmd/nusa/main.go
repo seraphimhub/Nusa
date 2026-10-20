@@ -4,15 +4,17 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/seraphimhub/Nusa/internal/lexer"
+	"github.com/seraphimhub/Nusa/internal/modul"
 	"github.com/seraphimhub/Nusa/internal/parser"
 	"github.com/seraphimhub/Nusa/internal/runtime"
 	"github.com/seraphimhub/Nusa/internal/token"
 )
 
-const VERSION = "1.1.0"
+const VERSION = "1.2.0"
 
 func main() {
 	os.Exit(run(os.Args[1:]))
@@ -47,6 +49,16 @@ func run(args []string) int {
 			return 1
 		}
 		return dumpTokens(args[1])
+	case "cek", "check":
+		if len(args) < 2 {
+			fmt.Fprintln(os.Stderr, "pakai: nusa cek <file.nusa> [file.nusa ...]")
+			return 1
+		}
+		return cekFiles(args[1:])
+	case "fmt", "format":
+		return runFmt(args[1:])
+	case "uji", "test":
+		return runUji(args[1:])
 	case "help", "--help", "-h":
 		printHelp()
 		return 0
@@ -80,7 +92,7 @@ func runFile(filename string) int {
 	}
 
 	tokens := lexer.Tokenize(source)
-	if reportLexErrors(tokens) {
+	if reportLexErrors(tokens, source) {
 		return 1
 	}
 
@@ -89,19 +101,34 @@ func runFile(filename string) int {
 	if len(p.Errors()) > 0 {
 		fmt.Fprintln(os.Stderr, "Error parsing:")
 		for _, err := range p.Errors() {
-			fmt.Fprintln(os.Stderr, "  ", err)
+			fmt.Fprint(os.Stderr, "  "+formatGalatTeks(err, source))
 		}
 		return 1
 	}
 
-	rt := runtime.New()
+	rt := newRuntime(filename)
 	result := rt.Execute(program)
 	if result != nil && result.Type() == runtime.ERROR_OBJ {
-		fmt.Fprintln(os.Stderr, result.Inspect())
+		fmt.Fprint(os.Stderr, formatGalat(result.(*runtime.Error), source))
 		return 1
 	}
 
 	return 0
+}
+
+// newRuntime membuat runtime dengan pemuat modul yang mencari berkas modul
+// relatif terhadap direktori berkas utama.
+func newRuntime(mainFile string) *runtime.Runtime {
+	rt := runtime.New()
+
+	basis := "."
+	if mainFile != "" {
+		basis = filepath.Dir(mainFile)
+	}
+	loader := modul.New(basis, os.Stdout, os.Stdin)
+	rt.SetModuleLoader(loader.Import)
+
+	return rt
 }
 
 func dumpAST(filename string) int {
@@ -111,7 +138,7 @@ func dumpAST(filename string) int {
 	}
 
 	tokens := lexer.Tokenize(source)
-	if reportLexErrors(tokens) {
+	if reportLexErrors(tokens, source) {
 		return 1
 	}
 
@@ -119,7 +146,7 @@ func dumpAST(filename string) int {
 	program := p.ParseProgram()
 	if len(p.Errors()) > 0 {
 		for _, err := range p.Errors() {
-			fmt.Fprintln(os.Stderr, err)
+			fmt.Fprint(os.Stderr, formatGalatTeks(err, source))
 		}
 		return 1
 	}
@@ -151,7 +178,7 @@ func dumpTokens(filename string) int {
 	return 0
 }
 
-func reportLexErrors(tokens []token.Token) bool {
+func reportLexErrors(tokens []token.Token, source string) bool {
 	found := false
 	for _, tok := range tokens {
 		if tok.Type == token.ILLEGAL {
@@ -159,7 +186,8 @@ func reportLexErrors(tokens []token.Token) bool {
 				fmt.Fprintln(os.Stderr, "Error leksikal:")
 			}
 			found = true
-			fmt.Fprintf(os.Stderr, "   baris %d:%d: karakter tidak dikenal %q\n", tok.Line, tok.Column, tok.Literal)
+			pesan := fmt.Sprintf("baris %d:%d: karakter tidak dikenal %q", tok.Line, tok.Column, tok.Literal)
+			fmt.Fprint(os.Stderr, "   "+formatGalatTeks(pesan, source))
 		}
 	}
 	return found
@@ -172,6 +200,8 @@ func runREPL() int {
 
 	reader := bufio.NewReader(os.Stdin)
 	rt := runtime.NewWithIO(os.Stdout, reader)
+	loader := modul.New(".", os.Stdout, reader)
+	rt.SetModuleLoader(loader.Import)
 
 	for {
 		fmt.Print("nusa> ")
@@ -204,7 +234,7 @@ func runREPL() int {
 		}
 
 		tokens := lexer.Tokenize(source)
-		if reportLexErrors(tokens) {
+		if reportLexErrors(tokens, source) {
 			continue
 		}
 
@@ -212,7 +242,7 @@ func runREPL() int {
 		program := p.ParseProgram()
 		if len(p.Errors()) > 0 {
 			for _, err := range p.Errors() {
-				fmt.Fprintln(os.Stderr, err)
+				fmt.Fprint(os.Stderr, formatGalatTeks(err, source))
 			}
 			continue
 		}
@@ -222,7 +252,7 @@ func runREPL() int {
 			continue
 		}
 		if result.Type() == runtime.ERROR_OBJ {
-			fmt.Fprintln(os.Stderr, result.Inspect())
+			fmt.Fprint(os.Stderr, formatGalat(result.(*runtime.Error), source))
 			continue
 		}
 		// Tampilkan nilai ekspresi yang dievaluasi di REPL.
@@ -316,6 +346,9 @@ PENGGUNAAN:
   nusa run <file>     Jalankan file .nusa
   nusa <file>         Singkatan untuk 'nusa run <file>'
   nusa repl           Mode interaktif REPL (mendukung input multi-baris)
+  nusa cek <file>     Pemeriksaan statis (tipe, variabel tak terdefinisi)
+  nusa fmt <file>     Format kode (komentar tetap terjaga)
+  nusa uji <file>     Jalankan blok uji pada file
   nusa ast <file>     Tampilkan pohon sintaks (AST)
   nusa token <file>   Tampilkan daftar token
   nusa help           Tampilkan bantuan ini
@@ -324,10 +357,14 @@ PENGGUNAAN:
 CONTOH:
   nusa run examples/fitur.nusa
   nusa examples/daftar.nusa
+  nusa cek examples/tipe.nusa
+  nusa fmt examples/halo.nusa
+  nusa uji examples/matematika_uji.nusa
   nusa repl
 
 FITUR BAHASA:
   buat        - Deklarasi variabel      (buat x = 10)
+  tetap       - Deklarasi konstanta      (tetap PI = 3.14)
   tulis       - Cetak output            (tulis "halo")
   jika        - Percabangan             (jika x > 5 { ... })
   kalau_tidak - Else / else-if          (kalau_tidak { ... })
@@ -336,25 +373,34 @@ FITUR BAHASA:
   untuk       - For range               (untuk i dari 1 sampai 5 { ... })
   untuk ... dalam - Iterasi daftar      (untuk x dalam daftar { ... })
   pilih       - Pencocokan nilai        (pilih x { kasus 1 { ... } bawaan { ... } })
+  coba/tangkap - Tangani galat          (coba { ... } tangkap e { ... })
+  lemparkan   - Buat galat              (lempar "pesan")
+  impor       - Muat modul              (impor "util.nusa")
+  uji/cek     - Tulis pengujian         (uji "nama" { cek x == 1 })
   fungsi      - Definisi fungsi         (fungsi nama(a, b) { ... })
   panggil     - Panggil fungsi          (panggil nama(1, 2) atau nama(1, 2))
   kembali     - Return value            (kembali x)
   membaca     - Input dari user         (membaca nama)
   berhenti    - Break dari loop         (berhenti)
-  lanjutkan   - Continue loop           (lanjutkan)
+  lanjutkan   - Continue loop            (lanjutkan)
 
 TIPE DATA:
-  angka, desimal, teks, benar/salah, kosong, daftar ([1, 2, 3])
+  angka, desimal, teks, benar/salah, kosong, daftar ([1, 2, 3]), peta
+
+ANOTASI TIPE (opsional):
+  buat umur: angka = 25
+  fungsi luas(sisi: angka): angka { kembali sisi * sisi }
 
 OPERATOR:
   +, -, *, /, %, >, <, >=, <=, ==, !=, tidak, dan, atau
   +=, -=, *=, /=, %=
 
 FUNGSI BAWAAN:
-  panjang, tipe, ke_teks, ke_angka, ke_desimal,
+  panjang, tipe, pesan, jejak, ada, kunci, nilai, ambil,
+  ke_teks, ke_angka, ke_desimal,
   huruf_besar, huruf_kecil, potong, cari, pisah, gabung,
   tambahkan, hapus, urutkan, balik, jumlah, rentang,
-  akar, pangkat, bulat, lantai, langit, mutlak
+  akar, pangkat, bulat, lantai, langit, mutlak, kudiag
 
 KOMENTAR:
   // komentar satu baris
